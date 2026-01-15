@@ -1,0 +1,158 @@
+using System;
+using System.Diagnostics;
+
+namespace A5Hash.Benchmark;
+
+class Program
+{
+    const int WarmupIterations = 1000;
+    const double BenchmarkDurationSec = 1.0;
+
+    static void Main(string[] args)
+    {
+        Console.WriteLine("a5hash C# Performance Benchmark");
+        Console.WriteLine("================================");
+        Console.WriteLine($"Each benchmark runs for {BenchmarkDurationSec:F1} seconds");
+        Console.WriteLine();
+
+        // Prepare test data
+        (int size, string name)[] sizes = 
+        {
+            (8, "8B"), (16, "16B"), (32, "32B"), (64, "64B"),
+            (128, "128B"), (256, "256B"), (512, "512B"), (1024, "1KB"),
+            (4096, "4KB"), (16384, "16KB"), (65536, "64KB"), (1048576, "1MB")
+        };
+
+        // Allocate and fill buffer
+        byte[] data = new byte[1048576];
+        for (int i = 0; i < data.Length; i++)
+        {
+            data[i] = (byte)(i * 31 + 17);
+        }
+
+        Console.WriteLine("--- a5hash (64-bit) ---");
+        foreach (var (size, name) in sizes)
+        {
+            BenchmarkHash64(data.AsSpan(0, size), name);
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("--- a5hash32 (32-bit) ---");
+        foreach (var (size, name) in sizes)
+        {
+            BenchmarkHash32(data.AsSpan(0, size), name);
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("--- a5hash128 (128-bit) ---");
+        foreach (var (size, name) in sizes)
+        {
+            BenchmarkHash128(data.AsSpan(0, size), name);
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Benchmark complete.");
+    }
+
+    static void BenchmarkHash64(ReadOnlySpan<byte> data, string name)
+    {
+        ulong result = 0;
+        int size = data.Length;
+
+        // Warmup
+        for (int i = 0; i < WarmupIterations; i++)
+        {
+            result = global::A5Hash.A5Hash.Hash(data, 0);
+        }
+
+        // Benchmark
+        long iterations = 0;
+        var sw = Stopwatch.StartNew();
+        
+        while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
+        {
+            for (int i = 0; i < 1000; i++)
+            {
+                result = global::A5Hash.A5Hash.Hash(data, 0);
+            }
+            iterations += 1000;
+        }
+
+        sw.Stop();
+        double elapsed = sw.Elapsed.TotalSeconds;
+        double opsPerSec = iterations / elapsed;
+        double bytesPerSec = (iterations * size) / elapsed;
+        double gbPerSec = bytesPerSec / (1024.0 * 1024.0 * 1024.0);
+
+        Console.WriteLine($"a5hash    {name,12}: {opsPerSec,12:F0} ops/sec, {gbPerSec,8:F3} GB/s");
+        GC.KeepAlive(result);
+    }
+
+    static void BenchmarkHash32(ReadOnlySpan<byte> data, string name)
+    {
+        uint result = 0;
+        int size = data.Length;
+
+        // Warmup
+        for (int i = 0; i < WarmupIterations; i++)
+        {
+            result = global::A5Hash.A5Hash.Hash32(data, 0);
+        }
+
+        // Benchmark
+        long iterations = 0;
+        var sw = Stopwatch.StartNew();
+        
+        while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
+        {
+            for (int i = 0; i < 1000; i++)
+            {
+                result = global::A5Hash.A5Hash.Hash32(data, 0);
+            }
+            iterations += 1000;
+        }
+
+        sw.Stop();
+        double elapsed = sw.Elapsed.TotalSeconds;
+        double opsPerSec = iterations / elapsed;
+        double bytesPerSec = (iterations * size) / elapsed;
+        double gbPerSec = bytesPerSec / (1024.0 * 1024.0 * 1024.0);
+
+        Console.WriteLine($"a5hash32  {name,12}: {opsPerSec,12:F0} ops/sec, {gbPerSec,8:F3} GB/s");
+        GC.KeepAlive(result);
+    }
+
+    static void BenchmarkHash128(ReadOnlySpan<byte> data, string name)
+    {
+        (ulong low, ulong high) result = (0, 0);
+        int size = data.Length;
+
+        // Warmup
+        for (int i = 0; i < WarmupIterations; i++)
+        {
+            result = global::A5Hash.A5Hash.Hash128(data, 0);
+        }
+
+        // Benchmark
+        long iterations = 0;
+        var sw = Stopwatch.StartNew();
+        
+        while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
+        {
+            for (int i = 0; i < 1000; i++)
+            {
+                result = global::A5Hash.A5Hash.Hash128(data, 0);
+            }
+            iterations += 1000;
+        }
+
+        sw.Stop();
+        double elapsed = sw.Elapsed.TotalSeconds;
+        double opsPerSec = iterations / elapsed;
+        double bytesPerSec = (iterations * size) / elapsed;
+        double gbPerSec = bytesPerSec / (1024.0 * 1024.0 * 1024.0);
+
+        Console.WriteLine($"a5hash128 {name,12}: {opsPerSec,12:F0} ops/sec, {gbPerSec,8:F3} GB/s");
+        GC.KeepAlive(result);
+    }
+}
