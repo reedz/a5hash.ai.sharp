@@ -20,12 +20,6 @@ This library provides:
 dotnet add package A5Hash.Sharp
 ```
 
-To produce a package locally:
-
-```bash
-dotnet pack -c Release src/A5Hash/A5Hash.csproj
-```
-
 ### Source
 
 Copy `src/A5Hash/A5Hash.cs` into your project and enable `AllowUnsafeBlocks`.
