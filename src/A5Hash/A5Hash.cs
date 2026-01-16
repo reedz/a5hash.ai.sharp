@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.X86;
 
 namespace A5Hash;
@@ -85,6 +86,21 @@ public static unsafe class A5Hash
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void UMul128(ulong u, ulong v, out ulong rl, out ulong rh)
     {
+        if (Bmi2.X64.IsSupported)
+        {
+            ulong low;
+            rh = Bmi2.X64.MultiplyNoFlags(u, v, &low);
+            rl = low;
+            return;
+        }
+
+        if (ArmBase.Arm64.IsSupported)
+        {
+            rl = u * v;
+            rh = ArmBase.Arm64.MultiplyHigh(u, v);
+            return;
+        }
+
         rh = Math.BigMul(u, v, out rl);
     }
 
@@ -124,7 +140,16 @@ public static unsafe class A5Hash
         ulong seed1 = 0x243F6A8885A308D3UL ^ (ulong)msgLen;
         ulong seed2 = 0x452821E638D01377UL ^ (ulong)msgLen;
 
-        UMul128(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
+        if (useSeed == 0 && msgLen == 4)
+        {
+            // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==4
+            seed1 = 0xD2C2E3CF5894ED95UL;
+            seed2 = 0x09CAC66C371A7852UL;
+        }
+        else
+        {
+            UMul128(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
+        }
 
         if (msgLen > 16)
         {
@@ -149,6 +174,15 @@ public static unsafe class A5Hash
 
         if (msgLen == 0)
         {
+            return FinalizeHash64(seed1, seed2, val01);
+        }
+
+        if (msgLen == 4)
+        {
+            uint x = LoadU32(ref msg);
+            ulong t = ((ulong)x << 32) | x;
+            seed1 ^= t;
+            seed2 ^= t;
             return FinalizeHash64(seed1, seed2, val01);
         }
 
@@ -208,20 +242,28 @@ public static unsafe class A5Hash
         // Seeds initialized to mantissa bits of PI
         uint seed1 = 0x243F6A88 ^ (uint)msgLen;
         uint seed2 = 0x85A308D3 ^ (uint)msgLen;
-        uint seed3, seed4;
+        // In C, these depend on MsgLen >> 32 on 64-bit platforms; in .NET msgLen is 32-bit.
+        uint seed3 = 0xFB0BD3EA;
+        uint seed4 = 0x0F58FD47;
         uint a, b, c = 0, d = 0;
 
-        // For 64-bit size_t systems - in .NET, int is 32-bit so msgLen >> 32 is always 0
-        UMul64(0x452821E6, 0x38D01377, out seed3, out seed4);
-
-        UMul64(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
+        if (useSeed == 0 && msgLen == 4)
+        {
+            // Precomputed: UMul64(seed2 ^ 0, seed1 ^ 0) for msgLen==4
+            seed1 = 0xFFBADB94;
+            seed2 = 0x12EC07FB;
+        }
+        else
+        {
+            UMul64(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
+        }
 
         if (msgLen < 17)
         {
             if (msgLen > 3)
             {
                 a = LoadU32(ref msg);
-                b = LoadU32(ref Unsafe.Add(ref msg, msgLen - 4));
+                b = (msgLen == 4) ? a : LoadU32(ref Unsafe.Add(ref msg, msgLen - 4));
 
                 if (msgLen >= 9)
                 {
@@ -427,10 +469,27 @@ public static unsafe class A5Hash
         ulong seed4 = 0xC0AC29B7C97C50DDUL;
         ulong a, b, c, d;
 
-        UMul128(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
+        if (useSeed == 0 && msgLen == 4)
+        {
+            // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==4
+            seed1 = 0xD2C2E3CF5894ED95UL;
+            seed2 = 0x09CAC66C371A7852UL;
+        }
+        else
+        {
+            UMul128(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
+        }
 
         if (msgLen < 17)
         {
+            if (msgLen == 4)
+            {
+                uint x = LoadU32(ref msg);
+                a = ((ulong)x << 32) | x;
+                b = a;
+                return FinalizeHash128Short(a, b, seed1, seed2, seed3, seed4, val01);
+            }
+
             if (msgLen > 3)
             {
                 ref byte msg4 = ref Unsafe.Add(ref msg, msgLen - 4);
