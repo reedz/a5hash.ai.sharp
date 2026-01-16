@@ -3,6 +3,9 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
+
 namespace A5Hash;
 
 /// <summary>
@@ -26,10 +29,7 @@ public static unsafe class A5Hash
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ulong Hash(ReadOnlySpan<byte> data, ulong seed = 0)
     {
-        fixed (byte* ptr = data)
-        {
-            return HashCore(ptr, data.Length, seed);
-        }
+        return HashCore(ref MemoryMarshal.GetReference(data), data.Length, seed);
     }
 
     /// <summary>
@@ -41,10 +41,7 @@ public static unsafe class A5Hash
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static uint Hash32(ReadOnlySpan<byte> data, uint seed = 0)
     {
-        fixed (byte* ptr = data)
-        {
-            return Hash32Core(ptr, data.Length, seed);
-        }
+        return Hash32Core(ref MemoryMarshal.GetReference(data), data.Length, seed);
     }
 
     /// <summary>
@@ -56,10 +53,7 @@ public static unsafe class A5Hash
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static (ulong Low, ulong High) Hash128(ReadOnlySpan<byte> data, ulong seed = 0)
     {
-        fixed (byte* ptr = data)
-        {
-            return Hash128Core(ptr, data.Length, seed);
-        }
+        return Hash128Core(ref MemoryMarshal.GetReference(data), data.Length, seed);
     }
 
     #endregion
@@ -70,18 +64,18 @@ public static unsafe class A5Hash
     /// Load 32-bit unsigned value from memory (little-endian, unaligned).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static uint LoadU32(byte* p)
+    private static uint LoadU32(ref byte p)
     {
-        return Unsafe.ReadUnaligned<uint>(p);
+        return Unsafe.ReadUnaligned<uint>(ref p);
     }
 
     /// <summary>
     /// Load 64-bit unsigned value from memory (little-endian, unaligned).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ulong LoadU64(byte* p)
+    private static ulong LoadU64(ref byte p)
     {
-        return Unsafe.ReadUnaligned<ulong>(p);
+        return Unsafe.ReadUnaligned<ulong>(ref p);
     }
 
     /// <summary>
@@ -121,7 +115,7 @@ public static unsafe class A5Hash
     #region A5Hash 64-bit Implementation
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    private static ulong HashCore(byte* msg, int msgLen, ulong useSeed)
+    private static ulong HashCore(ref byte msg, int msgLen, ulong useSeed)
     {
         ulong val01 = Val01;
         ulong val10 = Val10;
@@ -140,12 +134,12 @@ public static unsafe class A5Hash
             do
             {
                 UMul128(
-                    BitOperations.RotateLeft(LoadU64(msg), 32) ^ seed1,
-                    BitOperations.RotateLeft(LoadU64(msg + 8), 32) ^ seed2,
+                    BitOperations.RotateLeft(LoadU64(ref msg), 32) ^ seed1,
+                    BitOperations.RotateLeft(LoadU64(ref Unsafe.Add(ref msg, 8)), 32) ^ seed2,
                     out seed1, out seed2);
 
                 msgLen -= 16;
-                msg += 16;
+                msg = ref Unsafe.Add(ref msg, 16);
 
                 seed1 += val01;
                 seed2 += val10;
@@ -160,25 +154,25 @@ public static unsafe class A5Hash
 
         if (msgLen > 3)
         {
-            byte* msg4 = msg + msgLen - 4;
+            ref byte msg4 = ref Unsafe.Add(ref msg, msgLen - 4);
             int mo = msgLen >> 3;
 
-            seed1 ^= ((ulong)LoadU32(msg) << 32) | LoadU32(msg4);
-            seed2 ^= ((ulong)LoadU32(msg + mo * 4) << 32) | LoadU32(msg4 - mo * 4);
+            seed1 ^= ((ulong)LoadU32(ref msg) << 32) | LoadU32(ref msg4);
+            seed2 ^= ((ulong)LoadU32(ref Unsafe.Add(ref msg, mo * 4)) << 32) | LoadU32(ref Unsafe.Subtract(ref msg4, mo * 4));
 
             return FinalizeHash64(seed1, seed2, val01);
         }
         else
         {
-            seed1 ^= msg[0];
+            seed1 ^= msg;
 
             if (--msgLen != 0)
             {
-                seed1 ^= (ulong)msg[1] << 8;
+                seed1 ^= (ulong)Unsafe.Add(ref msg, 1) << 8;
 
                 if (--msgLen != 0)
                 {
-                    seed1 ^= (ulong)msg[2] << 16;
+                    seed1 ^= (ulong)Unsafe.Add(ref msg, 2) << 16;
                 }
             }
 
@@ -206,7 +200,7 @@ public static unsafe class A5Hash
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    private static uint Hash32Core(byte* msg, int msgLen, uint useSeed)
+    private static uint Hash32Core(ref byte msg, int msgLen, uint useSeed)
     {
         uint val01 = unchecked((uint)Val01);
         uint val10 = unchecked((uint)Val10);
@@ -226,14 +220,14 @@ public static unsafe class A5Hash
         {
             if (msgLen > 3)
             {
-                a = LoadU32(msg);
-                b = LoadU32(msg + msgLen - 4);
+                a = LoadU32(ref msg);
+                b = LoadU32(ref Unsafe.Add(ref msg, msgLen - 4));
 
                 if (msgLen >= 9)
                 {
                     int mo = msgLen >> 3;
-                    c = LoadU32(msg + mo * 4);
-                    d = LoadU32(msg + msgLen - 4 - mo * 4);
+                    c = LoadU32(ref Unsafe.Add(ref msg, mo * 4));
+                    d = LoadU32(ref Unsafe.Add(ref msg, msgLen - 4 - mo * 4));
                     UMul64(c + seed3, d + seed4, out seed3, out seed4);
                 }
 
@@ -246,15 +240,15 @@ public static unsafe class A5Hash
 
                 if (msgLen != 0)
                 {
-                    a = msg[0];
+                    a = msg;
 
                     if (msgLen != 1)
                     {
-                        a |= (uint)msg[1] << 8;
+                        a |= (uint)Unsafe.Add(ref msg, 1) << 8;
 
                         if (msgLen != 2)
                         {
-                            a |= (uint)msg[2] << 16;
+                            a |= (uint)Unsafe.Add(ref msg, 2) << 16;
                         }
                     }
                 }
@@ -267,31 +261,68 @@ public static unsafe class A5Hash
             val01 ^= seed1;
             val10 ^= seed2;
 
-            do
+            if (Sse2.IsSupported && msgLen >= 16)
             {
-                uint s1 = seed1;
-                uint s4 = seed4;
+                var seedVec = Vector128.Create(seed1, seed2, seed3, seed4);
+                var val01Vec = Vector128.Create(val01);
+                var val10Vec = Vector128.Create(val10);
+                var constantMix = Vector128.Create(val01, 0, 0, val10);
+                var oldMaskVec = Vector128.Create(0, 0xFFFFFFFF, 0xFFFFFFFF, 0);
 
-                UMul64(LoadU32(msg) + seed1, LoadU32(msg + 4) + seed2, out seed1, out seed2);
-                UMul64(LoadU32(msg + 8) + seed3, LoadU32(msg + 12) + seed4, out seed3, out seed4);
+                do
+                {
+                    var msgVec = Unsafe.ReadUnaligned<Vector128<uint>>(ref msg);
+                    var terms = Sse2.Add(msgVec, seedVec);
+                    
+                    var left = Sse2.Shuffle(terms, 0xA0);
+                    var right = Sse2.Shuffle(terms, 0xF5);
+                    
+                    var prod = Sse2.Multiply(left, right);
+                    var newSeeds = prod.AsUInt32();
+                    
+                    var oldMix = Sse2.Shuffle(seedVec, 0x0C);
+                    
+                    seedVec = Sse2.Add(newSeeds, constantMix);
+                    seedVec = Sse2.Add(seedVec, Sse2.And(oldMix, oldMaskVec));
 
-                msgLen -= 16;
-                msg += 16;
+                    msgLen -= 16;
+                    msg = ref Unsafe.Add(ref msg, 16);
 
-                seed1 += val01;
-                seed2 += s4;
-                seed3 += s1;
-                seed4 += val10;
+                } while (msgLen > 16);
+                
+                seed1 = seedVec.GetElement(0);
+                seed2 = seedVec.GetElement(1);
+                seed3 = seedVec.GetElement(2);
+                seed4 = seedVec.GetElement(3);
+            }
+            else
+            {
+                do
+                {
+                    uint s1 = seed1;
+                    uint s4 = seed4;
 
-            } while (msgLen > 16);
+                    UMul64(LoadU32(ref msg) + seed1, LoadU32(ref Unsafe.Add(ref msg, 4)) + seed2, out seed1, out seed2);
+                    UMul64(LoadU32(ref Unsafe.Add(ref msg, 8)) + seed3, LoadU32(ref Unsafe.Add(ref msg, 12)) + seed4, out seed3, out seed4);
 
-            a = LoadU32(msg + msgLen - 8);
-            b = LoadU32(msg + msgLen - 4);
+                    msgLen -= 16;
+                    msg = ref Unsafe.Add(ref msg, 16);
+
+                    seed1 += val01;
+                    seed2 += s4;
+                    seed3 += s1;
+                    seed4 += val10;
+
+                } while (msgLen > 16);
+            }
+
+            a = LoadU32(ref Unsafe.Add(ref msg, msgLen - 8));
+            b = LoadU32(ref Unsafe.Add(ref msg, msgLen - 4));
 
             if (msgLen >= 9)
             {
-                c = LoadU32(msg + msgLen - 16);
-                d = LoadU32(msg + msgLen - 12);
+                c = LoadU32(ref Unsafe.Add(ref msg, msgLen - 16));
+                d = LoadU32(ref Unsafe.Add(ref msg, msgLen - 12));
                 UMul64(c + seed3, d + seed4, out seed3, out seed4);
             }
 
@@ -368,23 +399,23 @@ public static unsafe class A5Hash
     /// Process 32-byte tail block.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void ProcessTail32(byte* msg, ref ulong seed1, ref ulong seed2, 
+    private static void ProcessTail32(ref byte msg, ref ulong seed1, ref ulong seed2, 
         ref ulong seed3, ref ulong seed4, ulong val01, ulong val10)
     {
         ulong s1 = seed1;
 
-        UMul128(LoadU64(msg) + seed1, LoadU64(msg + 8) + seed2, out seed1, out seed2);
+        UMul128(LoadU64(ref msg) + seed1, LoadU64(ref Unsafe.Add(ref msg, 8)) + seed2, out seed1, out seed2);
         seed1 += val01;
         seed2 += seed4;
 
-        UMul128(LoadU64(msg + 16) + seed3, LoadU64(msg + 24) + seed4, out seed3, out seed4);
+        UMul128(LoadU64(ref Unsafe.Add(ref msg, 16)) + seed3, LoadU64(ref Unsafe.Add(ref msg, 24)) + seed4, out seed3, out seed4);
 
         seed3 += s1;
         seed4 += val10;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    private static (ulong Low, ulong High) Hash128Core(byte* msg, int msgLen, ulong useSeed)
+    private static (ulong Low, ulong High) Hash128Core(ref byte msg, int msgLen, ulong useSeed)
     {
         ulong val01 = Val01;
         ulong val10 = Val10;
@@ -402,11 +433,11 @@ public static unsafe class A5Hash
         {
             if (msgLen > 3)
             {
-                byte* msg4 = msg + msgLen - 4;
+                ref byte msg4 = ref Unsafe.Add(ref msg, msgLen - 4);
                 int mo = msgLen >> 3;
 
-                a = ((ulong)LoadU32(msg) << 32) | LoadU32(msg4);
-                b = ((ulong)LoadU32(msg + mo * 4) << 32) | LoadU32(msg4 - mo * 4);
+                a = ((ulong)LoadU32(ref msg) << 32) | LoadU32(ref msg4);
+                b = ((ulong)LoadU32(ref Unsafe.Add(ref msg, mo * 4)) << 32) | LoadU32(ref Unsafe.Subtract(ref msg4, mo * 4));
 
                 return FinalizeHash128Short(a, b, seed1, seed2, seed3, seed4, val01);
             }
@@ -417,15 +448,15 @@ public static unsafe class A5Hash
 
                 if (msgLen != 0)
                 {
-                    a = msg[0];
+                    a = msg;
 
                     if (--msgLen != 0)
                     {
-                        a |= (ulong)msg[1] << 8;
+                        a |= (ulong)Unsafe.Add(ref msg, 1) << 8;
 
                         if (--msgLen != 0)
                         {
-                            a |= (ulong)msg[2] << 16;
+                            a |= (ulong)Unsafe.Add(ref msg, 2) << 16;
                         }
                     }
                 }
@@ -436,10 +467,10 @@ public static unsafe class A5Hash
 
         if (msgLen < 33)
         {
-            a = BitOperations.RotateLeft(LoadU64(msg), 32);
-            b = BitOperations.RotateLeft(LoadU64(msg + 8), 32);
-            c = BitOperations.RotateLeft(LoadU64(msg + msgLen - 16), 32);
-            d = BitOperations.RotateLeft(LoadU64(msg + msgLen - 8), 32);
+            a = BitOperations.RotateLeft(LoadU64(ref msg), 32);
+            b = BitOperations.RotateLeft(LoadU64(ref Unsafe.Add(ref msg, 8)), 32);
+            c = BitOperations.RotateLeft(LoadU64(ref Unsafe.Add(ref msg, msgLen - 16)), 32);
+            d = BitOperations.RotateLeft(LoadU64(ref Unsafe.Add(ref msg, msgLen - 8)), 32);
 
             return FinalizeHash128WithCD(a, b, c, d, seed1, seed2, seed3, seed4, val01);
         }
@@ -461,19 +492,19 @@ public static unsafe class A5Hash
                 ulong s3 = seed3;
                 ulong s5 = seed5;
 
-                UMul128(LoadU64(msg) + seed1, LoadU64(msg + 32) + seed2, out seed1, out seed2);
+                UMul128(LoadU64(ref msg) + seed1, LoadU64(ref Unsafe.Add(ref msg, 32)) + seed2, out seed1, out seed2);
                 seed1 += val01;
                 seed2 += seed8;
 
-                UMul128(LoadU64(msg + 8) + seed3, LoadU64(msg + 40) + seed4, out seed3, out seed4);
+                UMul128(LoadU64(ref Unsafe.Add(ref msg, 8)) + seed3, LoadU64(ref Unsafe.Add(ref msg, 40)) + seed4, out seed3, out seed4);
                 seed3 += s1;
                 seed4 += val10;
 
-                UMul128(LoadU64(msg + 16) + seed5, LoadU64(msg + 48) + seed6, out seed5, out seed6);
-                UMul128(LoadU64(msg + 24) + seed7, LoadU64(msg + 56) + seed8, out seed7, out seed8);
+                UMul128(LoadU64(ref Unsafe.Add(ref msg, 16)) + seed5, LoadU64(ref Unsafe.Add(ref msg, 48)) + seed6, out seed5, out seed6);
+                UMul128(LoadU64(ref Unsafe.Add(ref msg, 24)) + seed7, LoadU64(ref Unsafe.Add(ref msg, 56)) + seed8, out seed7, out seed8);
 
                 msgLen -= 64;
-                msg += 64;
+                msg = ref Unsafe.Add(ref msg, 64);
 
                 seed5 += s3;
                 seed6 += val10;
@@ -489,29 +520,29 @@ public static unsafe class A5Hash
 
             if (msgLen > 32)
             {
-                ProcessTail32(msg, ref seed1, ref seed2, ref seed3, ref seed4, val01, val10);
+                ProcessTail32(ref msg, ref seed1, ref seed2, ref seed3, ref seed4, val01, val10);
                 msgLen -= 32;
-                msg += 32;
+                msg = ref Unsafe.Add(ref msg, 32);
             }
         }
         else
         {
             // 33 <= msgLen <= 64
-            ProcessTail32(msg, ref seed1, ref seed2, ref seed3, ref seed4, val01, val10);
+            ProcessTail32(ref msg, ref seed1, ref seed2, ref seed3, ref seed4, val01, val10);
             msgLen -= 32;
-            msg += 32;
+            msg = ref Unsafe.Add(ref msg, 32);
         }
 
-        a = LoadU64(msg + msgLen - 16);
-        b = LoadU64(msg + msgLen - 8);
+        a = LoadU64(ref Unsafe.Add(ref msg, msgLen - 16));
+        b = LoadU64(ref Unsafe.Add(ref msg, msgLen - 8));
 
         if (msgLen < 17)
         {
             return FinalizeHash128NoCD(a, b, seed1, seed2, seed3, seed4, val01);
         }
 
-        c = LoadU64(msg + msgLen - 32);
-        d = LoadU64(msg + msgLen - 24);
+        c = LoadU64(ref Unsafe.Add(ref msg, msgLen - 32));
+        d = LoadU64(ref Unsafe.Add(ref msg, msgLen - 24));
 
         return FinalizeHash128WithCD(a, b, c, d, seed1, seed2, seed3, seed4, val01);
     }
