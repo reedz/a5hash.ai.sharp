@@ -13,7 +13,7 @@
     <PackageId>A5Hash.Sharp</PackageId>
     <Title>A5Hash.Sharp</Title>
     <Description>AI-assisted C# port of Aleksey Vaneev's a5hash (https://github.com/avaneev/a5hash): fast non-cryptographic 64/32/128-bit hash functions optimized for small inputs.</Description>
-    <Authors>reedz</Authors>
+    <Authors>Dmitry Reznik</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/reedz/a5hash.ai.sharp</PackageProjectUrl>
     <RepositoryUrl>https://github.com/reedz/a5hash.ai.sharp</RepositoryUrl>
