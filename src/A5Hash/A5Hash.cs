@@ -1,9 +1,7 @@
 using System.Buffers.Binary;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-#if NET7_0_OR_GREATER
-using System.Runtime.Intrinsics.X86;
-#endif
 
 namespace A5Hash;
 
@@ -93,17 +91,6 @@ public static unsafe class A5Hash
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void UMul128(ulong u, ulong v, out ulong rl, out ulong rh)
     {
-#if NET7_0_OR_GREATER
-        if (Bmi2.X64.IsSupported)
-        {
-            ulong low;
-            // Note: .NET's MultiplyNoFlags returns HIGH and stores LOW in the pointer,
-            // which is the opposite of Intel's _mulx_u64 documentation
-            rh = Bmi2.X64.MultiplyNoFlags(u, v, &low);
-            rl = low;
-            return;
-        }
-#endif
         rh = Math.BigMul(u, v, out rl);
     }
 
@@ -153,8 +140,8 @@ public static unsafe class A5Hash
             do
             {
                 UMul128(
-                    ((ulong)LoadU32(msg) << 32) ^ LoadU32(msg + 4) ^ seed1,
-                    ((ulong)LoadU32(msg + 8) << 32) ^ LoadU32(msg + 12) ^ seed2,
+                    BitOperations.RotateLeft(LoadU64(msg), 32) ^ seed1,
+                    BitOperations.RotateLeft(LoadU64(msg + 8), 32) ^ seed2,
                     out seed1, out seed2);
 
                 msgLen -= 16;
@@ -449,10 +436,10 @@ public static unsafe class A5Hash
 
         if (msgLen < 33)
         {
-            a = ((ulong)LoadU32(msg) << 32) | LoadU32(msg + 4);
-            b = ((ulong)LoadU32(msg + 8) << 32) | LoadU32(msg + 12);
-            c = ((ulong)LoadU32(msg + msgLen - 16) << 32) | LoadU32(msg + msgLen - 12);
-            d = ((ulong)LoadU32(msg + msgLen - 8) << 32) | LoadU32(msg + msgLen - 4);
+            a = BitOperations.RotateLeft(LoadU64(msg), 32);
+            b = BitOperations.RotateLeft(LoadU64(msg + 8), 32);
+            c = BitOperations.RotateLeft(LoadU64(msg + msgLen - 16), 32);
+            d = BitOperations.RotateLeft(LoadU64(msg + msgLen - 8), 32);
 
             return FinalizeHash128WithCD(a, b, c, d, seed1, seed2, seed3, seed4, val01);
         }

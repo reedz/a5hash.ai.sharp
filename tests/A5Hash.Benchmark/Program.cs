@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO.Hashing;
 
 namespace A5Hash.Benchmark;
 
@@ -18,7 +19,7 @@ class Program
         // Prepare test data
         (int size, string name)[] sizes = 
         {
-            (8, "8B"), (16, "16B"), (32, "32B"), (64, "64B"),
+            (4, "4B"), (8, "8B"), (16, "16B"), (32, "32B"), (64, "64B"),
             (128, "128B"), (256, "256B"), (512, "512B"), (1024, "1KB"),
             (4096, "4KB"), (16384, "16KB"), (65536, "64KB"), (1048576, "1MB")
         };
@@ -48,6 +49,13 @@ class Program
         foreach (var (size, name) in sizes)
         {
             BenchmarkHash128(data.AsSpan(0, size), name);
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("--- System.IO.Hashing.Crc32 ---");
+        foreach (var (size, name) in sizes)
+        {
+            BenchmarkCrc32(data.AsSpan(0, size), name);
         }
 
         Console.WriteLine();
@@ -153,6 +161,40 @@ class Program
         double gbPerSec = bytesPerSec / (1024.0 * 1024.0 * 1024.0);
 
         Console.WriteLine($"a5hash128 {name,12}: {opsPerSec,12:F0} ops/sec, {gbPerSec,8:F3} GB/s");
+        GC.KeepAlive(result);
+    }
+
+    static void BenchmarkCrc32(ReadOnlySpan<byte> data, string name)
+    {
+        uint result = 0;
+        int size = data.Length;
+
+        // Warmup
+        for (int i = 0; i < WarmupIterations; i++)
+        {
+            result = Crc32.HashToUInt32(data);
+        }
+
+        // Benchmark
+        long iterations = 0;
+        var sw = Stopwatch.StartNew();
+        
+        while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
+        {
+            for (int i = 0; i < 1000; i++)
+            {
+                result = Crc32.HashToUInt32(data);
+            }
+            iterations += 1000;
+        }
+
+        sw.Stop();
+        double elapsed = sw.Elapsed.TotalSeconds;
+        double opsPerSec = iterations / elapsed;
+        double bytesPerSec = (iterations * size) / elapsed;
+        double gbPerSec = bytesPerSec / (1024.0 * 1024.0 * 1024.0);
+
+        Console.WriteLine($"Crc32     {name,12}: {opsPerSec,12:F0} ops/sec, {gbPerSec,8:F3} GB/s");
         GC.KeepAlive(result);
     }
 }
