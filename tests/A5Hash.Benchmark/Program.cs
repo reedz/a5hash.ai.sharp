@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO.Hashing;
 
@@ -13,6 +14,7 @@ class Program
     {
         bool minimal = args.Length > 0 && args[0] == "--minimal";
         bool minimal8 = args.Length > 0 && args[0] == "--minimal8";
+        bool minimalAny = minimal || minimal8;
         
         Console.WriteLine("a5hash C# Performance Benchmark");
         Console.WriteLine("================================");
@@ -53,37 +55,64 @@ class Program
         Console.WriteLine("--- a5hash (64-bit) ---");
         foreach (var (size, name) in sizes)
         {
-            if (minimal)
-                BenchmarkHash64Minimal(data.AsSpan(0, size), name);
+            if (minimalAny)
+            {
+                if (size == 4)
+                    BenchmarkHash64Minimal(BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(0, size)), name);
+                else if (size == 8)
+                    BenchmarkHash64Minimal(BinaryPrimitives.ReadUInt64LittleEndian(data.AsSpan(0, size)), name);
+                else
+                    BenchmarkHash64Minimal(data.AsSpan(0, size), name);
+            }
             else
+            {
                 BenchmarkHash64(data.AsSpan(0, size), name);
+            }
         }
 
         Console.WriteLine();
         Console.WriteLine("--- a5hash32 (32-bit) ---");
         foreach (var (size, name) in sizes)
         {
-            if (minimal)
-                BenchmarkHash32Minimal(data.AsSpan(0, size), name);
+            if (minimalAny)
+            {
+                if (size == 4)
+                    BenchmarkHash32Minimal(BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(0, size)), name);
+                else if (size == 8)
+                    BenchmarkHash32Minimal(BinaryPrimitives.ReadUInt64LittleEndian(data.AsSpan(0, size)), name);
+                else
+                    BenchmarkHash32Minimal(data.AsSpan(0, size), name);
+            }
             else
+            {
                 BenchmarkHash32(data.AsSpan(0, size), name);
+            }
         }
 
         Console.WriteLine();
         Console.WriteLine("--- a5hash128 (128-bit) ---");
         foreach (var (size, name) in sizes)
         {
-            if (minimal)
-                BenchmarkHash128Minimal(data.AsSpan(0, size), name);
+            if (minimalAny)
+            {
+                if (size == 4)
+                    BenchmarkHash128Minimal(BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(0, size)), name);
+                else if (size == 8)
+                    BenchmarkHash128Minimal(BinaryPrimitives.ReadUInt64LittleEndian(data.AsSpan(0, size)), name);
+                else
+                    BenchmarkHash128Minimal(data.AsSpan(0, size), name);
+            }
             else
+            {
                 BenchmarkHash128(data.AsSpan(0, size), name);
+            }
         }
 
         Console.WriteLine();
         Console.WriteLine("--- System.IO.Hashing.Crc32 ---");
         foreach (var (size, name) in sizes)
         {
-            if (minimal)
+            if (minimalAny)
                 BenchmarkCrc32Minimal(data.AsSpan(0, size), name);
             else
                 BenchmarkCrc32(data.AsSpan(0, size), name);
@@ -163,13 +192,14 @@ class Program
 
     static void BenchmarkHash128(ReadOnlySpan<byte> data, string name)
     {
-        (ulong low, ulong high) result = (0, 0);
+        ulong low = 0;
+        ulong high = 0;
         int size = data.Length;
 
         // Warmup
         for (int i = 0; i < WarmupIterations; i++)
         {
-            result = global::A5Hash.A5Hash.Hash128(data, 0);
+            low = global::A5Hash.A5Hash.Hash128(data, out high, 0);
         }
 
         // Benchmark
@@ -180,7 +210,7 @@ class Program
         {
             for (int i = 0; i < 1000; i++)
             {
-                result = global::A5Hash.A5Hash.Hash128(data, 0);
+                low = global::A5Hash.A5Hash.Hash128(data, out high, 0);
             }
             iterations += 1000;
         }
@@ -192,7 +222,8 @@ class Program
         double gbPerSec = bytesPerSec / (1024.0 * 1024.0 * 1024.0);
 
         Console.WriteLine($"a5hash128 {name,12}: {opsPerSec,12:F0} ops/sec, {gbPerSec,8:F3} GB/s");
-        GC.KeepAlive(result);
+        GC.KeepAlive(low);
+        GC.KeepAlive(high);
     }
 
     static void BenchmarkCrc32(ReadOnlySpan<byte> data, string name)
@@ -230,6 +261,68 @@ class Program
     }
 
     // Minimal benchmark methods - only print ops/s
+    static void BenchmarkHash64Minimal(uint value, string name)
+    {
+        ulong result = 0;
+
+        // Warmup
+        for (int i = 0; i < WarmupIterations; i++)
+        {
+            result = global::A5Hash.A5Hash.Hash(value, 0);
+        }
+
+        // Benchmark
+        long iterations = 0;
+        var sw = Stopwatch.StartNew();
+
+        while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
+        {
+            for (int i = 0; i < 1000; i++)
+            {
+                result = global::A5Hash.A5Hash.Hash(value, 0);
+            }
+            iterations += 1000;
+        }
+
+        sw.Stop();
+        double elapsed = sw.Elapsed.TotalSeconds;
+        double opsPerSec = iterations / elapsed;
+
+        Console.WriteLine($"a5hash    {name,12}: {opsPerSec,12:F0} ops/sec");
+        GC.KeepAlive(result);
+    }
+
+    static void BenchmarkHash64Minimal(ulong value, string name)
+    {
+        ulong result = 0;
+
+        // Warmup
+        for (int i = 0; i < WarmupIterations; i++)
+        {
+            result = global::A5Hash.A5Hash.Hash(value, 0);
+        }
+
+        // Benchmark
+        long iterations = 0;
+        var sw = Stopwatch.StartNew();
+
+        while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
+        {
+            for (int i = 0; i < 1000; i++)
+            {
+                result = global::A5Hash.A5Hash.Hash(value, 0);
+            }
+            iterations += 1000;
+        }
+
+        sw.Stop();
+        double elapsed = sw.Elapsed.TotalSeconds;
+        double opsPerSec = iterations / elapsed;
+
+        Console.WriteLine($"a5hash    {name,12}: {opsPerSec,12:F0} ops/sec");
+        GC.KeepAlive(result);
+    }
+
     static void BenchmarkHash64Minimal(ReadOnlySpan<byte> data, string name)
     {
         ulong result = 0;
@@ -243,7 +336,7 @@ class Program
         // Benchmark
         long iterations = 0;
         var sw = Stopwatch.StartNew();
-        
+
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
@@ -261,6 +354,68 @@ class Program
         GC.KeepAlive(result);
     }
 
+    static void BenchmarkHash32Minimal(uint value, string name)
+    {
+        uint result = 0;
+
+        // Warmup
+        for (int i = 0; i < WarmupIterations; i++)
+        {
+            result = global::A5Hash.A5Hash.Hash32(value, 0);
+        }
+
+        // Benchmark
+        long iterations = 0;
+        var sw = Stopwatch.StartNew();
+
+        while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
+        {
+            for (int i = 0; i < 1000; i++)
+            {
+                result = global::A5Hash.A5Hash.Hash32(value, 0);
+            }
+            iterations += 1000;
+        }
+
+        sw.Stop();
+        double elapsed = sw.Elapsed.TotalSeconds;
+        double opsPerSec = iterations / elapsed;
+
+        Console.WriteLine($"a5hash32  {name,12}: {opsPerSec,12:F0} ops/sec");
+        GC.KeepAlive(result);
+    }
+
+    static void BenchmarkHash32Minimal(ulong value, string name)
+    {
+        uint result = 0;
+
+        // Warmup
+        for (int i = 0; i < WarmupIterations; i++)
+        {
+            result = global::A5Hash.A5Hash.Hash32(value, 0);
+        }
+
+        // Benchmark
+        long iterations = 0;
+        var sw = Stopwatch.StartNew();
+
+        while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
+        {
+            for (int i = 0; i < 1000; i++)
+            {
+                result = global::A5Hash.A5Hash.Hash32(value, 0);
+            }
+            iterations += 1000;
+        }
+
+        sw.Stop();
+        double elapsed = sw.Elapsed.TotalSeconds;
+        double opsPerSec = iterations / elapsed;
+
+        Console.WriteLine($"a5hash32  {name,12}: {opsPerSec,12:F0} ops/sec");
+        GC.KeepAlive(result);
+    }
+
     static void BenchmarkHash32Minimal(ReadOnlySpan<byte> data, string name)
     {
         uint result = 0;
@@ -274,7 +429,7 @@ class Program
         // Benchmark
         long iterations = 0;
         var sw = Stopwatch.StartNew();
-        
+
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
@@ -292,25 +447,26 @@ class Program
         GC.KeepAlive(result);
     }
 
-    static void BenchmarkHash128Minimal(ReadOnlySpan<byte> data, string name)
+    static void BenchmarkHash128Minimal(uint value, string name)
     {
-        (ulong low, ulong high) result = (0, 0);
+        ulong low = 0;
+        ulong high = 0;
 
         // Warmup
         for (int i = 0; i < WarmupIterations; i++)
         {
-            result = global::A5Hash.A5Hash.Hash128(data, 0);
+            low = global::A5Hash.A5Hash.Hash128(value, out high, 0);
         }
 
         // Benchmark
         long iterations = 0;
         var sw = Stopwatch.StartNew();
-        
+
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
             {
-                result = global::A5Hash.A5Hash.Hash128(data, 0);
+                low = global::A5Hash.A5Hash.Hash128(value, out high, 0);
             }
             iterations += 1000;
         }
@@ -320,7 +476,74 @@ class Program
         double opsPerSec = iterations / elapsed;
 
         Console.WriteLine($"a5hash128 {name,12}: {opsPerSec,12:F0} ops/sec");
-        GC.KeepAlive(result);
+        GC.KeepAlive(low);
+        GC.KeepAlive(high);
+    }
+
+    static void BenchmarkHash128Minimal(ulong value, string name)
+    {
+        ulong low = 0;
+        ulong high = 0;
+
+        // Warmup
+        for (int i = 0; i < WarmupIterations; i++)
+        {
+            low = global::A5Hash.A5Hash.Hash128(value, out high, 0);
+        }
+
+        // Benchmark
+        long iterations = 0;
+        var sw = Stopwatch.StartNew();
+
+        while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
+        {
+            for (int i = 0; i < 1000; i++)
+            {
+                low = global::A5Hash.A5Hash.Hash128(value, out high, 0);
+            }
+            iterations += 1000;
+        }
+
+        sw.Stop();
+        double elapsed = sw.Elapsed.TotalSeconds;
+        double opsPerSec = iterations / elapsed;
+
+        Console.WriteLine($"a5hash128 {name,12}: {opsPerSec,12:F0} ops/sec");
+        GC.KeepAlive(low);
+        GC.KeepAlive(high);
+    }
+
+    static void BenchmarkHash128Minimal(ReadOnlySpan<byte> data, string name)
+    {
+        ulong low = 0;
+        ulong high = 0;
+
+        // Warmup
+        for (int i = 0; i < WarmupIterations; i++)
+        {
+            low = global::A5Hash.A5Hash.Hash128(data, out high, 0);
+        }
+
+        // Benchmark
+        long iterations = 0;
+        var sw = Stopwatch.StartNew();
+
+        while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
+        {
+            for (int i = 0; i < 1000; i++)
+            {
+                low = global::A5Hash.A5Hash.Hash128(data, out high, 0);
+            }
+            iterations += 1000;
+        }
+
+        sw.Stop();
+        double elapsed = sw.Elapsed.TotalSeconds;
+        double opsPerSec = iterations / elapsed;
+
+        Console.WriteLine($"a5hash128 {name,12}: {opsPerSec,12:F0} ops/sec");
+        GC.KeepAlive(low);
+        GC.KeepAlive(high);
     }
 
     static void BenchmarkCrc32Minimal(ReadOnlySpan<byte> data, string name)

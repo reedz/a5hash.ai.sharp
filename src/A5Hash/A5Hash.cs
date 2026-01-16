@@ -166,6 +166,16 @@ public static unsafe class A5Hash
     /// This avoids tuple copies in hot paths.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ulong Hash128(uint value, out ulong high, ulong seed = 0)
+    {
+        return Hash128_4(value, seed, out high);
+    }
+
+    /// <summary>
+    /// Produces a 128-bit hash value (low) and outputs the high 64 bits.
+    /// This avoids tuple copies in hot paths.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ulong Hash128(ulong value, out ulong high, ulong seed = 0)
     {
         return Hash128_8(value, seed, out high);
@@ -242,6 +252,7 @@ public static unsafe class A5Hash
         rh = Math.BigMul(u, v, out rl);
     }
 
+
     /// <summary>
     /// 32-bit by 32-bit unsigned multiplication producing a 64-bit result.
     /// </summary>
@@ -257,7 +268,6 @@ public static unsafe class A5Hash
     private static ulong Hash4(uint value, ulong useSeed)
     {
         ulong val01 = Val01;
-        ulong val10 = Val10;
 
         // Seeds initialized to mantissa bits of PI
         ulong seed1 = 0x243F6A8885A308D3UL ^ 4UL;
@@ -271,6 +281,7 @@ public static unsafe class A5Hash
         }
         else
         {
+            ulong val10 = Val10;
             UMul128(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
         }
 
@@ -285,7 +296,6 @@ public static unsafe class A5Hash
     private static ulong Hash8(ulong value, ulong useSeed)
     {
         ulong val01 = Val01;
-        ulong val10 = Val10;
 
         // Seeds initialized to mantissa bits of PI
         ulong seed1 = 0x243F6A8885A308D3UL ^ 8UL;
@@ -299,6 +309,7 @@ public static unsafe class A5Hash
         }
         else
         {
+            ulong val10 = Val10;
             UMul128(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
         }
 
@@ -317,7 +328,6 @@ public static unsafe class A5Hash
     private static uint Hash32_4(uint value, uint useSeed)
     {
         uint val01 = unchecked((uint)Val01);
-        uint val10 = unchecked((uint)Val10);
 
         // Seeds initialized to mantissa bits of PI
         uint seed1 = 0x243F6A88 ^ 4u;
@@ -333,6 +343,7 @@ public static unsafe class A5Hash
         }
         else
         {
+            uint val10 = unchecked((uint)Val10);
             UMul64(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
         }
 
@@ -343,7 +354,6 @@ public static unsafe class A5Hash
     private static uint Hash32_8(ulong value, uint useSeed)
     {
         uint val01 = unchecked((uint)Val01);
-        uint val10 = unchecked((uint)Val10);
 
         // Seeds initialized to mantissa bits of PI
         uint seed1 = 0x243F6A88 ^ 8u;
@@ -359,6 +369,7 @@ public static unsafe class A5Hash
         }
         else
         {
+            uint val10 = unchecked((uint)Val10);
             UMul64(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
         }
 
@@ -372,7 +383,6 @@ public static unsafe class A5Hash
     private static ulong Hash128_4(uint value, ulong useSeed, out ulong high)
     {
         ulong val01 = Val01;
-        ulong val10 = Val10;
 
         // Seeds initialized to mantissa bits of PI
         ulong seed1 = 0x243F6A8885A308D3UL ^ 4UL;
@@ -388,6 +398,7 @@ public static unsafe class A5Hash
         }
         else
         {
+            ulong val10 = Val10;
             UMul128(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
         }
 
@@ -396,19 +407,19 @@ public static unsafe class A5Hash
 
         UMul128(a + seed1, b + seed2, out seed1, out seed2);
 
-        // Keep the same multiply order as the native implementation to maximize IL/JIT scheduling.
+        UMul128(val01 ^ seed1, seed2, out a, out b);
+        ulong low = a ^ b;
+
         UMul128(seed1 ^ seed3, seed2 ^ seed4, out seed3, out seed4);
         high = seed3 ^ seed4;
 
-        UMul128(val01 ^ seed1, seed2, out a, out b);
-        return a ^ b;
+        return low;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ulong Hash128_8(ulong value, ulong useSeed, out ulong high)
     {
         ulong val01 = Val01;
-        ulong val10 = Val10;
 
         // Seeds initialized to mantissa bits of PI
         ulong seed1 = 0x243F6A8885A308D3UL ^ 8UL;
@@ -424,6 +435,7 @@ public static unsafe class A5Hash
         }
         else
         {
+            ulong val10 = Val10;
             UMul128(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
         }
 
@@ -434,11 +446,13 @@ public static unsafe class A5Hash
 
         UMul128(a + seed1, b + seed2, out seed1, out seed2);
 
+        UMul128(val01 ^ seed1, seed2, out a, out b);
+        ulong low = a ^ b;
+
         UMul128(seed1 ^ seed3, seed2 ^ seed4, out seed3, out seed4);
         high = seed3 ^ seed4;
 
-        UMul128(val01 ^ seed1, seed2, out a, out b);
-        return a ^ b;
+        return low;
     }
 
     /// <summary>
