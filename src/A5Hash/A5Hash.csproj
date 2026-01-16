@@ -1,10 +1,38 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- NuGet package metadata -->
+    <IsPackable>true</IsPackable>
+    <Version>0.1.0</Version>
+    <PackageId>A5Hash.Sharp</PackageId>
+    <Title>A5Hash.Sharp</Title>
+    <Description>AI-assisted C# port of Aleksey Vaneev's a5hash (https://github.com/avaneev/a5hash): fast non-cryptographic 64/32/128-bit hash functions optimized for small inputs.</Description>
+    <Authors>reedz</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/reedz/a5hash.ai.sharp</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/reedz/a5hash.ai.sharp</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageTags>a5hash;hash;non-cryptographic;performance;crc32;intrinsics</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- Create snupkg symbols packages (recommended) -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Make README visible on NuGet.org -->
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+
+    <!-- Ship XML docs for IntelliSense -->
+    <None Include="$(TargetDir)$(AssemblyName).xml" Pack="true" PackagePath="lib/$(TargetFramework)/" Condition="'$(TargetFramework)' != ''" />
+  </ItemGroup>
 
 </Project>

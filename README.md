@@ -20,6 +20,12 @@ This library provides:
 dotnet add package A5Hash.Sharp
 ```
 
+To produce a package locally:
+
+```bash
+dotnet pack -c Release src/A5Hash/A5Hash.csproj
+```
+
 ### Source
 
 Copy `src/A5Hash/A5Hash.cs` into your project and enable `AllowUnsafeBlocks`.
@@ -58,7 +64,7 @@ Highlights from the latest run (see `benchmarks.md` for details):
 
 ## Requirements
 
-- Targets **net10.0** (currently)
+- Targets **net8.0** and **net10.0**
 - `AllowUnsafeBlocks=true`
 
 ## Credits
