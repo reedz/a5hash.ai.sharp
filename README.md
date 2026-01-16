@@ -29,14 +29,19 @@ Copy `src/A5Hash/A5Hash.cs` into your project and enable `AllowUnsafeBlocks`.
 ```csharp
 using A5Hash;
 
-ReadOnlySpan<byte> data = "Hello, World!"u8;
+ReadOnlySpan<byte> bytes = "Hello, World!"u8;
+ReadOnlySpan<char> chars = "Hello, World!";
 
-ulong h64 = A5Hash.Hash(data);
-uint  h32 = A5Hash.Hash32(data);
-var (low, high) = A5Hash.Hash128(data);
+ulong h64Bytes = A5Hash.Hash(bytes);
+uint  h32Bytes = A5Hash.Hash32(bytes);
+var (lowBytes, highBytes) = A5Hash.Hash128(bytes);
+
+ulong h64Chars = A5Hash.Hash(chars);
+uint  h32Chars = A5Hash.Hash32(chars);
+var (lowChars, highChars) = A5Hash.Hash128(chars);
 
 // Optional seed (recommended when hashing attacker-controlled keys)
-ulong seeded = A5Hash.Hash(data, seed: 0xDEADBEEFCAFEBABE);
+ulong seeded = A5Hash.Hash(chars, seed: 0xDEADBEEFCAFEBABE);
 ```
 
 ### Hashing a slice (zero allocations)

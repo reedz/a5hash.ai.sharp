@@ -42,7 +42,30 @@ public static unsafe class A5Hash
             return Hash8(x, seed);
         }
 
+        if (data.Length == 16)
+        {
+            return Hash16(ref MemoryMarshal.GetReference(data), seed);
+        }
+
         return HashCore(ref MemoryMarshal.GetReference(data), data.Length, seed);
+    }
+
+    /// <summary>
+    /// Produces a 64-bit hash value of the specified UTF-16 char data (no allocations).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ulong Hash(ReadOnlySpan<char> data, ulong seed = 0)
+    {
+        return Hash(MemoryMarshal.AsBytes(data), seed);
+    }
+
+    /// <summary>
+    /// Produces a 64-bit hash value of the specified string's UTF-16 data (no allocations).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ulong Hash(string data, ulong seed = 0)
+    {
+        return Hash(data.AsSpan(), seed);
     }
 
     /// <summary>
@@ -86,7 +109,30 @@ public static unsafe class A5Hash
             return Hash32_8(value: x, seed);
         }
 
+        if (data.Length == 16)
+        {
+            return Hash32_16(ref MemoryMarshal.GetReference(data), seed);
+        }
+
         return Hash32Core(ref MemoryMarshal.GetReference(data), data.Length, seed);
+    }
+
+    /// <summary>
+    /// Produces a 32-bit hash value of the specified UTF-16 char data (no allocations).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static uint Hash32(ReadOnlySpan<char> data, uint seed = 0)
+    {
+        return Hash32(MemoryMarshal.AsBytes(data), seed);
+    }
+
+    /// <summary>
+    /// Produces a 32-bit hash value of the specified string's UTF-16 data (no allocations).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static uint Hash32(string data, uint seed = 0)
+    {
+        return Hash32(data.AsSpan(), seed);
     }
 
     /// <summary>
@@ -134,7 +180,30 @@ public static unsafe class A5Hash
             return (low, high);
         }
 
+        if (data.Length == 16)
+        {
+            return Hash128_16(ref MemoryMarshal.GetReference(data), seed);
+        }
+
         return Hash128Core(ref MemoryMarshal.GetReference(data), data.Length, seed);
+    }
+
+    /// <summary>
+    /// Produces a 128-bit hash value of the specified UTF-16 char data (no allocations).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static (ulong Low, ulong High) Hash128(ReadOnlySpan<char> data, ulong seed = 0)
+    {
+        return Hash128(MemoryMarshal.AsBytes(data), seed);
+    }
+
+    /// <summary>
+    /// Produces a 128-bit hash value of the specified string's UTF-16 data (no allocations).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static (ulong Low, ulong High) Hash128(string data, ulong seed = 0)
+    {
+        return Hash128(data.AsSpan(), seed);
     }
 
     /// <summary>
@@ -200,9 +269,34 @@ public static unsafe class A5Hash
             return Hash128_8(value: x, seed, out high);
         }
 
-        var t = Hash128Core(ref MemoryMarshal.GetReference(data), data.Length, seed);
-        high = t.High;
-        return t.Low;
+        if (data.Length == 16)
+        {
+            var t = Hash128_16(ref MemoryMarshal.GetReference(data), seed);
+            high = t.High;
+            return t.Low;
+        }
+
+        var t2 = Hash128Core(ref MemoryMarshal.GetReference(data), data.Length, seed);
+        high = t2.High;
+        return t2.Low;
+    }
+
+    /// <summary>
+    /// Produces a 128-bit hash value (low) and outputs the high 64 bits for the specified UTF-16 char data.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ulong Hash128(ReadOnlySpan<char> data, out ulong high, ulong seed = 0)
+    {
+        return Hash128(MemoryMarshal.AsBytes(data), out high, seed);
+    }
+
+    /// <summary>
+    /// Produces a 128-bit hash value (low) and outputs the high 64 bits for the specified string's UTF-16 data.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ulong Hash128(string data, out ulong high, ulong seed = 0)
+    {
+        return Hash128(data.AsSpan(), out high, seed);
     }
 
     #endregion
@@ -322,6 +416,95 @@ public static unsafe class A5Hash
         seed2 ^= b;
 
         return FinalizeHash64(seed1, seed2, val01);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong Hash16(ref byte msg, ulong useSeed)
+    {
+        ulong val01 = Val01;
+
+        // Seeds initialized to mantissa bits of PI
+        ulong seed1 = 0x243F6A8885A308D3UL ^ 16UL;
+        ulong seed2 = 0x452821E638D01377UL ^ 16UL;
+
+        if (useSeed == 0)
+        {
+            // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==16
+            seed1 = 0xB8A73F6CA4AEFF75UL;
+            seed2 = 0x09CAC66C371A784BUL;
+        }
+        else
+        {
+            ulong val10 = Val10;
+            UMul128(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
+        }
+
+        seed1 ^= ((ulong)LoadU32(ref msg) << 32) | LoadU32(ref Unsafe.Add(ref msg, 12));
+        seed2 ^= ((ulong)LoadU32(ref Unsafe.Add(ref msg, 8)) << 32) | LoadU32(ref Unsafe.Add(ref msg, 4));
+
+        return FinalizeHash64(seed1, seed2, val01);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint Hash32_16(ref byte msg, uint useSeed)
+    {
+        uint val01 = unchecked((uint)Val01);
+
+        // Seeds initialized to mantissa bits of PI
+        uint seed1 = 0x243F6A88 ^ 16u;
+        uint seed2 = 0x85A308D3 ^ 16u;
+        uint seed3 = 0xFB0BD3EA;
+        uint seed4 = 0x0F58FD47;
+
+        if (useSeed == 0)
+        {
+            // Precomputed: UMul64(seed2 ^ 0, seed1 ^ 0) for msgLen==16
+            seed1 = 0x6E6AF1C8;
+            seed2 = 0x12EC07FF;
+        }
+        else
+        {
+            uint val10 = unchecked((uint)Val10);
+            UMul64(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
+        }
+
+        uint a = LoadU32(ref msg);
+        uint b = LoadU32(ref Unsafe.Add(ref msg, 12));
+        uint c = LoadU32(ref Unsafe.Add(ref msg, 8));
+        uint d = LoadU32(ref Unsafe.Add(ref msg, 4));
+
+        UMul64(c + seed3, d + seed4, out seed3, out seed4);
+
+        return FinalizeHash32(a, b, seed1, seed2, seed3, seed4, val01);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static (ulong Low, ulong High) Hash128_16(ref byte msg, ulong useSeed)
+    {
+        ulong val01 = Val01;
+
+        // Seeds initialized to mantissa bits of PI
+        ulong seed1 = 0x243F6A8885A308D3UL ^ 16UL;
+        ulong seed2 = 0x452821E638D01377UL ^ 16UL;
+        ulong seed3 = 0xA4093822299F31D0UL;
+        ulong seed4 = 0xC0AC29B7C97C50DDUL;
+
+        if (useSeed == 0)
+        {
+            // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==16
+            seed1 = 0xB8A73F6CA4AEFF75UL;
+            seed2 = 0x09CAC66C371A784BUL;
+        }
+        else
+        {
+            ulong val10 = Val10;
+            UMul128(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
+        }
+
+        ulong a = ((ulong)LoadU32(ref msg) << 32) | LoadU32(ref Unsafe.Add(ref msg, 12));
+        ulong b = ((ulong)LoadU32(ref Unsafe.Add(ref msg, 8)) << 32) | LoadU32(ref Unsafe.Add(ref msg, 4));
+
+        return FinalizeHash128Short(a, b, seed1, seed2, seed3, seed4, val01);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -480,11 +663,30 @@ public static unsafe class A5Hash
         ulong seed1 = 0x243F6A8885A308D3UL ^ (ulong)msgLen;
         ulong seed2 = 0x452821E638D01377UL ^ (ulong)msgLen;
 
-        if (useSeed == 0 && msgLen == 4)
+        if (useSeed == 0)
         {
-            // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==4
-            seed1 = 0xD2C2E3CF5894ED95UL;
-            seed2 = 0x09CAC66C371A7852UL;
+            if (msgLen == 0)
+            {
+                // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==0
+                seed1 = 0x4F2006588BE0C315UL;
+                seed2 = 0x09CAC66C371A7852UL;
+            }
+            else if (msgLen == 4)
+            {
+                // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==4
+                seed1 = 0xD2C2E3CF5894ED95UL;
+                seed2 = 0x09CAC66C371A7852UL;
+            }
+            else if (msgLen == 16)
+            {
+                // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==16
+                seed1 = 0xB8A73F6CA4AEFF75UL;
+                seed2 = 0x09CAC66C371A784BUL;
+            }
+            else
+            {
+                UMul128(seed2, seed1, out seed1, out seed2);
+            }
         }
         else
         {
@@ -587,11 +789,30 @@ public static unsafe class A5Hash
         uint seed4 = 0x0F58FD47;
         uint a, b, c = 0, d = 0;
 
-        if (useSeed == 0 && msgLen == 4)
+        if (useSeed == 0)
         {
-            // Precomputed: UMul64(seed2 ^ 0, seed1 ^ 0) for msgLen==4
-            seed1 = 0xFFBADB94;
-            seed2 = 0x12EC07FB;
+            if (msgLen == 0)
+            {
+                // Precomputed: UMul64(seed2 ^ 0, seed1 ^ 0) for msgLen==0
+                seed1 = 0x58310E18;
+                seed2 = 0x12EC07F9;
+            }
+            else if (msgLen == 4)
+            {
+                // Precomputed: UMul64(seed2 ^ 0, seed1 ^ 0) for msgLen==4
+                seed1 = 0xFFBADB94;
+                seed2 = 0x12EC07FB;
+            }
+            else if (msgLen == 16)
+            {
+                // Precomputed: UMul64(seed2 ^ 0, seed1 ^ 0) for msgLen==16
+                seed1 = 0x6E6AF1C8;
+                seed2 = 0x12EC07FF;
+            }
+            else
+            {
+                UMul64(seed2, seed1, out seed1, out seed2);
+            }
         }
         else
         {
@@ -809,11 +1030,30 @@ public static unsafe class A5Hash
         ulong seed4 = 0xC0AC29B7C97C50DDUL;
         ulong a, b, c, d;
 
-        if (useSeed == 0 && msgLen == 4)
+        if (useSeed == 0)
         {
-            // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==4
-            seed1 = 0xD2C2E3CF5894ED95UL;
-            seed2 = 0x09CAC66C371A7852UL;
+            if (msgLen == 0)
+            {
+                // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==0
+                seed1 = 0x4F2006588BE0C315UL;
+                seed2 = 0x09CAC66C371A7852UL;
+            }
+            else if (msgLen == 4)
+            {
+                // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==4
+                seed1 = 0xD2C2E3CF5894ED95UL;
+                seed2 = 0x09CAC66C371A7852UL;
+            }
+            else if (msgLen == 16)
+            {
+                // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==16
+                seed1 = 0xB8A73F6CA4AEFF75UL;
+                seed2 = 0x09CAC66C371A784BUL;
+            }
+            else
+            {
+                UMul128(seed2, seed1, out seed1, out seed2);
+            }
         }
         else
         {
