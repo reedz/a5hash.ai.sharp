@@ -79,42 +79,42 @@ Benchmarks run on .NET 8.0, Release build. The C# implementation achieves near-p
 
 | Size | C# (GB/s) | C (GB/s) | C# / C |
 |------|-----------|----------|--------|
-| 8B | 0.90 | 2.63 | 34% |
-| 64B | 4.62 | 7.84 | 59% |
-| 256B | 6.71 | 7.81 | 86% |
-| 1KB | 6.17 | 6.21 | 99% |
-| 64KB | 6.10 | 4.75 | 128% |
-| 1MB | 6.10 | 3.62 | 169% |
+| 8B | 1.12 | 2.63 | 43% |
+| 64B | 5.05 | 7.84 | 64% |
+| 256B | 6.69 | 7.81 | 86% |
+| 1KB | 6.03 | 6.21 | 97% |
+| 64KB | 5.42 | 4.75 | 114% |
+| 1MB | 5.26 | 3.62 | 145% |
 
 ### a5hash32 (32-bit)
 
 | Size | C# (GB/s) | C (GB/s) | C# / C |
 |------|-----------|----------|--------|
-| 8B | 1.22 | 2.10 | 58% |
-| 64B | 5.31 | 5.34 | 99% |
-| 256B | 5.86 | 4.09 | 143% |
-| 1KB | 5.66 | 4.85 | 117% |
-| 64KB | 5.61 | 4.17 | 135% |
-| 1MB | 5.53 | 4.62 | 120% |
+| 8B | 1.32 | 2.10 | 63% |
+| 64B | 4.68 | 5.34 | 88% |
+| 256B | 5.46 | 4.09 | 134% |
+| 1KB | 5.11 | 4.85 | 105% |
+| 64KB | 5.17 | 4.17 | 124% |
+| 1MB | 5.02 | 4.62 | 109% |
 
 ### a5hash128 (128-bit)
 
 | Size | C# (GB/s) | C (GB/s) | C# / C |
 |------|-----------|----------|--------|
-| 8B | 0.61 | 2.91 | 21% |
-| 64B | 3.54 | 9.18 | 39% |
-| 256B | 6.67 | 11.69 | 57% |
-| 1KB | 8.51 | 12.31 | 69% |
-| 64KB | 9.37 | 14.46 | 65% |
-| 1MB | 9.20 | 11.67 | 79% |
+| 8B | 0.81 | 2.91 | 28% |
+| 64B | 3.68 | 9.18 | 40% |
+| 256B | 7.20 | 11.69 | 62% |
+| 1KB | 9.39 | 12.31 | 76% |
+| 64KB | 9.86 | 14.46 | 68% |
+| 1MB | 9.76 | 11.67 | 84% |
 
 ### Summary
 
 | Function | Avg C# Throughput | Avg C Throughput |
 |----------|-------------------|------------------|
-| a5hash | ~5.5 GB/s | ~5.9 GB/s |
-| a5hash32 | ~5.0 GB/s | ~4.2 GB/s |
-| a5hash128 | ~6.8 GB/s | ~10.1 GB/s |
+| a5hash | ~5.3 GB/s | ~5.9 GB/s |
+| a5hash32 | ~5.1 GB/s | ~4.2 GB/s |
+| a5hash128 | ~7.5 GB/s | ~10.1 GB/s |
 
 ## Implementation Notes
 
@@ -124,6 +124,8 @@ This C# port uses several optimizations to achieve high performance:
 - **`Unsafe.ReadUnaligned<T>`** - Direct memory loads without byte-by-byte assembly
 - **BMI2 hardware intrinsics** - Uses `Bmi2.X64.MultiplyNoFlags` for 128-bit multiplication when available
 - **Aggressive inlining** - All methods marked with `MethodImplOptions.AggressiveInlining`
+- **`[SkipLocalsInit]`** - Avoids zero-initialization overhead for local variables
+- **`AggressiveOptimization`** - Core methods use aggressive JIT optimization hints
 
 ## Requirements
 

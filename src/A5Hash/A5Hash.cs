@@ -11,6 +11,7 @@ namespace A5Hash;
 /// High-performance hash functions ported from a5hash C implementation.
 /// Provides 64-bit, 32-bit, and 128-bit hash functions.
 /// </summary>
+[SkipLocalsInit]
 public static unsafe class A5Hash
 {
     private const ulong Val10 = 0xAAAAAAAAAAAAAAAAUL; // `10` bit-pairs
@@ -132,6 +133,7 @@ public static unsafe class A5Hash
 
     #region A5Hash 64-bit Implementation
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static ulong HashCore(byte* msg, int msgLen, ulong useSeed)
     {
         ulong val01 = Val01;
@@ -216,6 +218,7 @@ public static unsafe class A5Hash
         return a ^ b;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static uint Hash32Core(byte* msg, int msgLen, uint useSeed)
     {
         uint val01 = unchecked((uint)Val01);
@@ -393,6 +396,7 @@ public static unsafe class A5Hash
         seed4 += val10;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static (ulong Low, ulong High) Hash128Core(byte* msg, int msgLen, ulong useSeed)
     {
         ulong val01 = Val01;
