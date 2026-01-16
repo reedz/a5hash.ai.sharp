@@ -12,6 +12,7 @@ class Program
     static void Main(string[] args)
     {
         bool minimal = args.Length > 0 && args[0] == "--minimal";
+        bool minimal8 = args.Length > 0 && args[0] == "--minimal8";
         
         Console.WriteLine("a5hash C# Performance Benchmark");
         Console.WriteLine("================================");
@@ -19,6 +20,10 @@ class Program
         if (minimal)
         {
             Console.WriteLine("MINIMAL MODE: 4B only, ops/s only");
+        }
+        else if (minimal8)
+        {
+            Console.WriteLine("MINIMAL MODE: 8B only, ops/s only");
         }
         else
         {
@@ -29,12 +34,14 @@ class Program
         // Prepare test data
         (int size, string name)[] sizes = minimal
             ? new[] { (4, "4B") }
-            : new[] 
-            {
-                (4, "4B"), (8, "8B"), (16, "16B"), (32, "32B"), (64, "64B"),
-                (128, "128B"), (256, "256B"), (512, "512B"), (1024, "1KB"),
-                (4096, "4KB"), (16384, "16KB"), (65536, "64KB"), (1048576, "1MB")
-            };
+            : minimal8
+                ? new[] { (8, "8B") }
+                : new[]
+                {
+                    (4, "4B"), (8, "8B"), (16, "16B"), (32, "32B"), (64, "64B"),
+                    (128, "128B"), (256, "256B"), (512, "512B"), (1024, "1KB"),
+                    (4096, "4KB"), (16384, "16KB"), (65536, "64KB"), (1048576, "1MB")
+                };
 
         // Allocate and fill buffer
         byte[] data = new byte[1048576];

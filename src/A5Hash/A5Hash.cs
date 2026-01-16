@@ -36,6 +36,12 @@ public static unsafe class A5Hash
             return Hash4(x, seed);
         }
 
+        if (data.Length == 8)
+        {
+            ulong x = LoadU64(ref MemoryMarshal.GetReference(data));
+            return Hash8(x, seed);
+        }
+
         return HashCore(ref MemoryMarshal.GetReference(data), data.Length, seed);
     }
 
@@ -47,6 +53,16 @@ public static unsafe class A5Hash
     public static ulong Hash(uint value, ulong seed = 0)
     {
         return Hash4(value, seed);
+    }
+
+    /// <summary>
+    /// Produces a 64-bit hash value of an 8-byte value.
+    /// Useful for high-throughput hashing of fixed-size keys.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ulong Hash(ulong value, ulong seed = 0)
+    {
+        return Hash8(value, seed);
     }
 
     /// <summary>
@@ -64,6 +80,12 @@ public static unsafe class A5Hash
             return Hash32_4(value: x, seed);
         }
 
+        if (data.Length == 8)
+        {
+            ulong x = LoadU64(ref MemoryMarshal.GetReference(data));
+            return Hash32_8(value: x, seed);
+        }
+
         return Hash32Core(ref MemoryMarshal.GetReference(data), data.Length, seed);
     }
 
@@ -75,6 +97,16 @@ public static unsafe class A5Hash
     public static uint Hash32(uint value, uint seed = 0)
     {
         return Hash32_4(value, seed);
+    }
+
+    /// <summary>
+    /// Produces a 32-bit hash value of an 8-byte value.
+    /// Useful for high-throughput hashing of fixed-size keys.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static uint Hash32(ulong value, uint seed = 0)
+    {
+        return Hash32_8(value, seed);
     }
 
     /// <summary>
@@ -94,6 +126,14 @@ public static unsafe class A5Hash
             return (low, high);
         }
 
+        if (data.Length == 8)
+        {
+            ulong x = LoadU64(ref MemoryMarshal.GetReference(data));
+            ulong high;
+            ulong low = Hash128_8(value: x, seed, out high);
+            return (low, high);
+        }
+
         return Hash128Core(ref MemoryMarshal.GetReference(data), data.Length, seed);
     }
 
@@ -110,6 +150,28 @@ public static unsafe class A5Hash
     }
 
     /// <summary>
+    /// Produces a 128-bit hash value of an 8-byte value.
+    /// Useful for high-throughput hashing of fixed-size keys.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static (ulong Low, ulong High) Hash128(ulong value, ulong seed = 0)
+    {
+        ulong high;
+        ulong low = Hash128_8(value, seed, out high);
+        return (low, high);
+    }
+
+    /// <summary>
+    /// Produces a 128-bit hash value (low) and outputs the high 64 bits.
+    /// This avoids tuple copies in hot paths.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ulong Hash128(ulong value, out ulong high, ulong seed = 0)
+    {
+        return Hash128_8(value, seed, out high);
+    }
+
+    /// <summary>
     /// Produces a 128-bit hash value (low) and outputs the high 64 bits.
     /// This avoids tuple copies in hot paths.
     /// </summary>
@@ -120,6 +182,12 @@ public static unsafe class A5Hash
         {
             uint x = LoadU32(ref MemoryMarshal.GetReference(data));
             return Hash128_4(value: x, seed, out high);
+        }
+
+        if (data.Length == 8)
+        {
+            ulong x = LoadU64(ref MemoryMarshal.GetReference(data));
+            return Hash128_8(value: x, seed, out high);
         }
 
         var t = Hash128Core(ref MemoryMarshal.GetReference(data), data.Length, seed);
@@ -214,6 +282,38 @@ public static unsafe class A5Hash
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong Hash8(ulong value, ulong useSeed)
+    {
+        ulong val01 = Val01;
+        ulong val10 = Val10;
+
+        // Seeds initialized to mantissa bits of PI
+        ulong seed1 = 0x243F6A8885A308D3UL ^ 8UL;
+        ulong seed2 = 0x452821E638D01377UL ^ 8UL;
+
+        if (useSeed == 0)
+        {
+            // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==8
+            seed1 = 0x9A5C69CE7F79A5A5UL;
+            seed2 = 0x09CAC66C371A7855UL;
+        }
+        else
+        {
+            UMul128(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
+        }
+
+        uint lo = unchecked((uint)value);
+        uint hi = unchecked((uint)(value >> 32));
+        ulong a = ((ulong)lo << 32) | hi;
+        ulong b = ((ulong)hi << 32) | lo;
+
+        seed1 ^= a;
+        seed2 ^= b;
+
+        return FinalizeHash64(seed1, seed2, val01);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static uint Hash32_4(uint value, uint useSeed)
     {
         uint val01 = unchecked((uint)Val01);
@@ -237,6 +337,35 @@ public static unsafe class A5Hash
         }
 
         return FinalizeHash32(value, value, seed1, seed2, seed3, seed4, val01);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint Hash32_8(ulong value, uint useSeed)
+    {
+        uint val01 = unchecked((uint)Val01);
+        uint val10 = unchecked((uint)Val10);
+
+        // Seeds initialized to mantissa bits of PI
+        uint seed1 = 0x243F6A88 ^ 8u;
+        uint seed2 = 0x85A308D3 ^ 8u;
+        uint seed3 = 0xFB0BD3EA;
+        uint seed4 = 0x0F58FD47;
+
+        if (useSeed == 0)
+        {
+            // Precomputed: UMul64(seed2 ^ 0, seed1 ^ 0) for msgLen==8
+            seed1 = 0x4D141B80;
+            seed2 = 0x12EC07F6;
+        }
+        else
+        {
+            UMul64(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
+        }
+
+        uint a = unchecked((uint)value);
+        uint b = unchecked((uint)(value >> 32));
+
+        return FinalizeHash32(a, b, seed1, seed2, seed3, seed4, val01);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -268,6 +397,43 @@ public static unsafe class A5Hash
         UMul128(a + seed1, b + seed2, out seed1, out seed2);
 
         // Keep the same multiply order as the native implementation to maximize IL/JIT scheduling.
+        UMul128(seed1 ^ seed3, seed2 ^ seed4, out seed3, out seed4);
+        high = seed3 ^ seed4;
+
+        UMul128(val01 ^ seed1, seed2, out a, out b);
+        return a ^ b;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong Hash128_8(ulong value, ulong useSeed, out ulong high)
+    {
+        ulong val01 = Val01;
+        ulong val10 = Val10;
+
+        // Seeds initialized to mantissa bits of PI
+        ulong seed1 = 0x243F6A8885A308D3UL ^ 8UL;
+        ulong seed2 = 0x452821E638D01377UL ^ 8UL;
+        ulong seed3 = 0xA4093822299F31D0UL;
+        ulong seed4 = 0xC0AC29B7C97C50DDUL;
+
+        if (useSeed == 0)
+        {
+            // Precomputed: UMul128(seed2 ^ 0, seed1 ^ 0) for msgLen==8
+            seed1 = 0x9A5C69CE7F79A5A5UL;
+            seed2 = 0x09CAC66C371A7855UL;
+        }
+        else
+        {
+            UMul128(seed2 ^ (useSeed & val10), seed1 ^ (useSeed & val01), out seed1, out seed2);
+        }
+
+        uint lo = unchecked((uint)value);
+        uint hi = unchecked((uint)(value >> 32));
+        ulong a = ((ulong)lo << 32) | hi;
+        ulong b = ((ulong)hi << 32) | lo;
+
+        UMul128(a + seed1, b + seed2, out seed1, out seed2);
+
         UMul128(seed1 ^ seed3, seed2 ^ seed4, out seed3, out seed4);
         high = seed3 ^ seed4;
 
