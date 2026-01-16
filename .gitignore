@@ -42,3 +42,6 @@ Thumbs.db
 tests/native/benchmark
 *.o
 *.a
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
