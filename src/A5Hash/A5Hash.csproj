@@ -9,7 +9,7 @@
 
     <!-- NuGet package metadata -->
     <IsPackable>true</IsPackable>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <PackageId>A5Hash.Sharp</PackageId>
     <Title>A5Hash.Sharp</Title>
     <Description>AI-assisted C# port of Aleksey Vaneev's a5hash (https://github.com/avaneev/a5hash): fast non-cryptographic 64/32/128-bit hash functions optimized for small inputs.</Description>
