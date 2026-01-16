@@ -1,0 +1,44 @@
+# Build outputs
+bin/
+obj/
+out/
+
+# .NET
+*.dll
+*.exe
+*.pdb
+*.cache
+*.user
+*.suo
+*.userosscache
+*.userprefs
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+
+# Visual Studio
+.vs/
+*.sln.docstates
+
+# Rider
+.idea/
+
+# VS Code
+.vscode/
+
+# Test results
+TestResults/
+*.trx
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Native build artifacts
+tests/native/benchmark
+*.o
+*.a

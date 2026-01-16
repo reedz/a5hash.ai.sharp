@@ -1,4 +1,9 @@
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+#if NET7_0_OR_GREATER
+using System.Runtime.Intrinsics.X86;
+#endif
 
 namespace A5Hash;
 
@@ -6,7 +11,7 @@ namespace A5Hash;
 /// High-performance hash functions ported from a5hash C implementation.
 /// Provides 64-bit, 32-bit, and 128-bit hash functions.
 /// </summary>
-public static class A5Hash
+public static unsafe class A5Hash
 {
     private const ulong Val10 = 0xAAAAAAAAAAAAAAAAUL; // `10` bit-pairs
     private const ulong Val01 = 0x5555555555555555UL; // `01` bit-pairs
@@ -22,7 +27,10 @@ public static class A5Hash
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ulong Hash(ReadOnlySpan<byte> data, ulong seed = 0)
     {
-        return HashCore(data, seed);
+        fixed (byte* ptr = data)
+        {
+            return HashCore(ptr, data.Length, seed);
+        }
     }
 
     /// <summary>
@@ -34,7 +42,10 @@ public static class A5Hash
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static uint Hash32(ReadOnlySpan<byte> data, uint seed = 0)
     {
-        return Hash32Core(data, seed);
+        fixed (byte* ptr = data)
+        {
+            return Hash32Core(ptr, data.Length, seed);
+        }
     }
 
     /// <summary>
@@ -46,7 +57,10 @@ public static class A5Hash
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static (ulong Low, ulong High) Hash128(ReadOnlySpan<byte> data, ulong seed = 0)
     {
-        return Hash128Core(data, seed);
+        fixed (byte* ptr = data)
+        {
+            return Hash128Core(ptr, data.Length, seed);
+        }
     }
 
     #endregion
@@ -54,30 +68,41 @@ public static class A5Hash
     #region Helper Methods
 
     /// <summary>
-    /// Load 32-bit unsigned value from memory (little-endian).
+    /// Load 32-bit unsigned value from memory (little-endian, unaligned).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static uint LoadU32(ReadOnlySpan<byte> p)
+    private static uint LoadU32(byte* p)
     {
-        return (uint)p[0] | ((uint)p[1] << 8) | ((uint)p[2] << 16) | ((uint)p[3] << 24);
+        return Unsafe.ReadUnaligned<uint>(p);
     }
 
     /// <summary>
-    /// Load 64-bit unsigned value from memory (little-endian).
+    /// Load 64-bit unsigned value from memory (little-endian, unaligned).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ulong LoadU64(ReadOnlySpan<byte> p)
+    private static ulong LoadU64(byte* p)
     {
-        return (ulong)p[0] | ((ulong)p[1] << 8) | ((ulong)p[2] << 16) | ((ulong)p[3] << 24) |
-               ((ulong)p[4] << 32) | ((ulong)p[5] << 40) | ((ulong)p[6] << 48) | ((ulong)p[7] << 56);
+        return Unsafe.ReadUnaligned<ulong>(p);
     }
 
     /// <summary>
     /// 64-bit by 64-bit unsigned multiplication producing a 128-bit result.
+    /// Uses BMI2 mulx intrinsic when available for best performance.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void UMul128(ulong u, ulong v, out ulong rl, out ulong rh)
     {
+#if NET7_0_OR_GREATER
+        if (Bmi2.X64.IsSupported)
+        {
+            ulong low;
+            // Note: .NET's MultiplyNoFlags returns HIGH and stores LOW in the pointer,
+            // which is the opposite of Intel's _mulx_u64 documentation
+            rh = Bmi2.X64.MultiplyNoFlags(u, v, &low);
+            rl = low;
+            return;
+        }
+#endif
         rh = Math.BigMul(u, v, out rl);
     }
 
@@ -96,7 +121,7 @@ public static class A5Hash
     /// Final hash computation helper for 64-bit hash.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ulong FinalizHash64(ulong seed1, ulong seed2, ulong val01)
+    private static ulong FinalizeHash64(ulong seed1, ulong seed2, ulong val01)
     {
         UMul128(seed1, seed2, out seed1, out seed2);
         UMul128(val01 ^ seed1, seed2, out seed1, out seed2);
@@ -107,11 +132,8 @@ public static class A5Hash
 
     #region A5Hash 64-bit Implementation
 
-    private static ulong HashCore(ReadOnlySpan<byte> msg, ulong useSeed)
+    private static ulong HashCore(byte* msg, int msgLen, ulong useSeed)
     {
-        int msgLen = msg.Length;
-        int offset = 0;
-
         ulong val01 = Val01;
         ulong val10 = Val10;
 
@@ -129,12 +151,12 @@ public static class A5Hash
             do
             {
                 UMul128(
-                    ((ulong)LoadU32(msg.Slice(offset)) << 32) ^ LoadU32(msg.Slice(offset + 4)) ^ seed1,
-                    ((ulong)LoadU32(msg.Slice(offset + 8)) << 32) ^ LoadU32(msg.Slice(offset + 12)) ^ seed2,
+                    ((ulong)LoadU32(msg) << 32) ^ LoadU32(msg + 4) ^ seed1,
+                    ((ulong)LoadU32(msg + 8) << 32) ^ LoadU32(msg + 12) ^ seed2,
                     out seed1, out seed2);
 
                 msgLen -= 16;
-                offset += 16;
+                msg += 16;
 
                 seed1 += val01;
                 seed2 += val10;
@@ -144,33 +166,34 @@ public static class A5Hash
 
         if (msgLen == 0)
         {
-            return FinalizHash64(seed1, seed2, val01);
+            return FinalizeHash64(seed1, seed2, val01);
         }
 
         if (msgLen > 3)
         {
+            byte* msg4 = msg + msgLen - 4;
             int mo = msgLen >> 3;
 
-            seed1 ^= ((ulong)LoadU32(msg.Slice(offset)) << 32) | LoadU32(msg.Slice(offset + msgLen - 4));
-            seed2 ^= ((ulong)LoadU32(msg.Slice(offset + mo * 4)) << 32) | LoadU32(msg.Slice(offset + msgLen - 4 - mo * 4));
+            seed1 ^= ((ulong)LoadU32(msg) << 32) | LoadU32(msg4);
+            seed2 ^= ((ulong)LoadU32(msg + mo * 4) << 32) | LoadU32(msg4 - mo * 4);
 
-            return FinalizHash64(seed1, seed2, val01);
+            return FinalizeHash64(seed1, seed2, val01);
         }
         else
         {
-            seed1 ^= msg[offset];
+            seed1 ^= msg[0];
 
             if (--msgLen != 0)
             {
-                seed1 ^= (ulong)msg[offset + 1] << 8;
+                seed1 ^= (ulong)msg[1] << 8;
 
                 if (--msgLen != 0)
                 {
-                    seed1 ^= (ulong)msg[offset + 2] << 16;
+                    seed1 ^= (ulong)msg[2] << 16;
                 }
             }
 
-            return FinalizHash64(seed1, seed2, val01);
+            return FinalizeHash64(seed1, seed2, val01);
         }
     }
 
@@ -193,11 +216,8 @@ public static class A5Hash
         return a ^ b;
     }
 
-    private static uint Hash32Core(ReadOnlySpan<byte> msg, uint useSeed)
+    private static uint Hash32Core(byte* msg, int msgLen, uint useSeed)
     {
-        int msgLen = msg.Length;
-        int offset = 0;
-
         uint val01 = unchecked((uint)Val01);
         uint val10 = unchecked((uint)Val10);
 
@@ -216,14 +236,14 @@ public static class A5Hash
         {
             if (msgLen > 3)
             {
-                a = LoadU32(msg.Slice(offset));
-                b = LoadU32(msg.Slice(offset + msgLen - 4));
+                a = LoadU32(msg);
+                b = LoadU32(msg + msgLen - 4);
 
                 if (msgLen >= 9)
                 {
                     int mo = msgLen >> 3;
-                    c = LoadU32(msg.Slice(offset + mo * 4));
-                    d = LoadU32(msg.Slice(offset + msgLen - 4 - mo * 4));
+                    c = LoadU32(msg + mo * 4);
+                    d = LoadU32(msg + msgLen - 4 - mo * 4);
                     UMul64(c + seed3, d + seed4, out seed3, out seed4);
                 }
 
@@ -236,15 +256,15 @@ public static class A5Hash
 
                 if (msgLen != 0)
                 {
-                    a = msg[offset];
+                    a = msg[0];
 
                     if (msgLen != 1)
                     {
-                        a |= (uint)msg[offset + 1] << 8;
+                        a |= (uint)msg[1] << 8;
 
                         if (msgLen != 2)
                         {
-                            a |= (uint)msg[offset + 2] << 16;
+                            a |= (uint)msg[2] << 16;
                         }
                     }
                 }
@@ -262,11 +282,11 @@ public static class A5Hash
                 uint s1 = seed1;
                 uint s4 = seed4;
 
-                UMul64(LoadU32(msg.Slice(offset)) + seed1, LoadU32(msg.Slice(offset + 4)) + seed2, out seed1, out seed2);
-                UMul64(LoadU32(msg.Slice(offset + 8)) + seed3, LoadU32(msg.Slice(offset + 12)) + seed4, out seed3, out seed4);
+                UMul64(LoadU32(msg) + seed1, LoadU32(msg + 4) + seed2, out seed1, out seed2);
+                UMul64(LoadU32(msg + 8) + seed3, LoadU32(msg + 12) + seed4, out seed3, out seed4);
 
                 msgLen -= 16;
-                offset += 16;
+                msg += 16;
 
                 seed1 += val01;
                 seed2 += s4;
@@ -275,13 +295,13 @@ public static class A5Hash
 
             } while (msgLen > 16);
 
-            a = LoadU32(msg.Slice(offset + msgLen - 8));
-            b = LoadU32(msg.Slice(offset + msgLen - 4));
+            a = LoadU32(msg + msgLen - 8);
+            b = LoadU32(msg + msgLen - 4);
 
             if (msgLen >= 9)
             {
-                c = LoadU32(msg.Slice(offset + msgLen - 16));
-                d = LoadU32(msg.Slice(offset + msgLen - 12));
+                c = LoadU32(msg + msgLen - 16);
+                d = LoadU32(msg + msgLen - 12);
                 UMul64(c + seed3, d + seed4, out seed3, out seed4);
             }
 
@@ -358,26 +378,23 @@ public static class A5Hash
     /// Process 32-byte tail block.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void ProcessTail32(ReadOnlySpan<byte> msg, int offset, ref ulong seed1, ref ulong seed2, 
+    private static void ProcessTail32(byte* msg, ref ulong seed1, ref ulong seed2, 
         ref ulong seed3, ref ulong seed4, ulong val01, ulong val10)
     {
         ulong s1 = seed1;
 
-        UMul128(LoadU64(msg.Slice(offset)) + seed1, LoadU64(msg.Slice(offset + 8)) + seed2, out seed1, out seed2);
+        UMul128(LoadU64(msg) + seed1, LoadU64(msg + 8) + seed2, out seed1, out seed2);
         seed1 += val01;
         seed2 += seed4;
 
-        UMul128(LoadU64(msg.Slice(offset + 16)) + seed3, LoadU64(msg.Slice(offset + 24)) + seed4, out seed3, out seed4);
+        UMul128(LoadU64(msg + 16) + seed3, LoadU64(msg + 24) + seed4, out seed3, out seed4);
 
         seed3 += s1;
         seed4 += val10;
     }
 
-    private static (ulong Low, ulong High) Hash128Core(ReadOnlySpan<byte> msg, ulong useSeed)
+    private static (ulong Low, ulong High) Hash128Core(byte* msg, int msgLen, ulong useSeed)
     {
-        int msgLen = msg.Length;
-        int offset = 0;
-
         ulong val01 = Val01;
         ulong val10 = Val10;
 
@@ -394,10 +411,11 @@ public static class A5Hash
         {
             if (msgLen > 3)
             {
+                byte* msg4 = msg + msgLen - 4;
                 int mo = msgLen >> 3;
 
-                a = ((ulong)LoadU32(msg.Slice(offset)) << 32) | LoadU32(msg.Slice(offset + msgLen - 4));
-                b = ((ulong)LoadU32(msg.Slice(offset + mo * 4)) << 32) | LoadU32(msg.Slice(offset + msgLen - 4 - mo * 4));
+                a = ((ulong)LoadU32(msg) << 32) | LoadU32(msg4);
+                b = ((ulong)LoadU32(msg + mo * 4) << 32) | LoadU32(msg4 - mo * 4);
 
                 return FinalizeHash128Short(a, b, seed1, seed2, seed3, seed4, val01);
             }
@@ -408,15 +426,15 @@ public static class A5Hash
 
                 if (msgLen != 0)
                 {
-                    a = msg[offset];
+                    a = msg[0];
 
                     if (--msgLen != 0)
                     {
-                        a |= (ulong)msg[offset + 1] << 8;
+                        a |= (ulong)msg[1] << 8;
 
                         if (--msgLen != 0)
                         {
-                            a |= (ulong)msg[offset + 2] << 16;
+                            a |= (ulong)msg[2] << 16;
                         }
                     }
                 }
@@ -427,10 +445,10 @@ public static class A5Hash
 
         if (msgLen < 33)
         {
-            a = ((ulong)LoadU32(msg.Slice(offset)) << 32) | LoadU32(msg.Slice(offset + 4));
-            b = ((ulong)LoadU32(msg.Slice(offset + 8)) << 32) | LoadU32(msg.Slice(offset + 12));
-            c = ((ulong)LoadU32(msg.Slice(offset + msgLen - 16)) << 32) | LoadU32(msg.Slice(offset + msgLen - 12));
-            d = ((ulong)LoadU32(msg.Slice(offset + msgLen - 8)) << 32) | LoadU32(msg.Slice(offset + msgLen - 4));
+            a = ((ulong)LoadU32(msg) << 32) | LoadU32(msg + 4);
+            b = ((ulong)LoadU32(msg + 8) << 32) | LoadU32(msg + 12);
+            c = ((ulong)LoadU32(msg + msgLen - 16) << 32) | LoadU32(msg + msgLen - 12);
+            d = ((ulong)LoadU32(msg + msgLen - 8) << 32) | LoadU32(msg + msgLen - 4);
 
             return FinalizeHash128WithCD(a, b, c, d, seed1, seed2, seed3, seed4, val01);
         }
@@ -452,19 +470,19 @@ public static class A5Hash
                 ulong s3 = seed3;
                 ulong s5 = seed5;
 
-                UMul128(LoadU64(msg.Slice(offset)) + seed1, LoadU64(msg.Slice(offset + 32)) + seed2, out seed1, out seed2);
+                UMul128(LoadU64(msg) + seed1, LoadU64(msg + 32) + seed2, out seed1, out seed2);
                 seed1 += val01;
                 seed2 += seed8;
 
-                UMul128(LoadU64(msg.Slice(offset + 8)) + seed3, LoadU64(msg.Slice(offset + 40)) + seed4, out seed3, out seed4);
+                UMul128(LoadU64(msg + 8) + seed3, LoadU64(msg + 40) + seed4, out seed3, out seed4);
                 seed3 += s1;
                 seed4 += val10;
 
-                UMul128(LoadU64(msg.Slice(offset + 16)) + seed5, LoadU64(msg.Slice(offset + 48)) + seed6, out seed5, out seed6);
-                UMul128(LoadU64(msg.Slice(offset + 24)) + seed7, LoadU64(msg.Slice(offset + 56)) + seed8, out seed7, out seed8);
+                UMul128(LoadU64(msg + 16) + seed5, LoadU64(msg + 48) + seed6, out seed5, out seed6);
+                UMul128(LoadU64(msg + 24) + seed7, LoadU64(msg + 56) + seed8, out seed7, out seed8);
 
                 msgLen -= 64;
-                offset += 64;
+                msg += 64;
 
                 seed5 += s3;
                 seed6 += val10;
@@ -480,29 +498,29 @@ public static class A5Hash
 
             if (msgLen > 32)
             {
-                ProcessTail32(msg, offset, ref seed1, ref seed2, ref seed3, ref seed4, val01, val10);
+                ProcessTail32(msg, ref seed1, ref seed2, ref seed3, ref seed4, val01, val10);
                 msgLen -= 32;
-                offset += 32;
+                msg += 32;
             }
         }
         else
         {
             // 33 <= msgLen <= 64
-            ProcessTail32(msg, offset, ref seed1, ref seed2, ref seed3, ref seed4, val01, val10);
+            ProcessTail32(msg, ref seed1, ref seed2, ref seed3, ref seed4, val01, val10);
             msgLen -= 32;
-            offset += 32;
+            msg += 32;
         }
 
-        a = LoadU64(msg.Slice(offset + msgLen - 16));
-        b = LoadU64(msg.Slice(offset + msgLen - 8));
+        a = LoadU64(msg + msgLen - 16);
+        b = LoadU64(msg + msgLen - 8);
 
         if (msgLen < 17)
         {
             return FinalizeHash128NoCD(a, b, seed1, seed2, seed3, seed4, val01);
         }
 
-        c = LoadU64(msg.Slice(offset + msgLen - 32));
-        d = LoadU64(msg.Slice(offset + msgLen - 24));
+        c = LoadU64(msg + msgLen - 32);
+        d = LoadU64(msg + msgLen - 24);
 
         return FinalizeHash128WithCD(a, b, c, d, seed1, seed2, seed3, seed4, val01);
     }
