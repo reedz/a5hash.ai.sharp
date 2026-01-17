@@ -55,11 +55,10 @@ ulong hash = A5Hash.Hash(buffer.AsSpan(0, 256));
 
 Full tables are in **[benchmarks.md](benchmarks.md)** and include:
 1) **Native C vs C#** (same algorithm)
-2) **C# vs hardware-accelerated CRC32** (`System.IO.Hashing.Crc32`)
 
 Highlights from the latest run (see `benchmarks.md` for details):
 - 64-bit throughput (1MB): **~5.9 GB/s** (C#) vs **~5.6 GB/s** (native C)
-- 4-byte throughput (ops/s): **a5hash32 ~368M ops/s** vs **HW CRC32 ~217M ops/s**
+- 4-byte throughput (ops/s): **a5hash32 ~368M ops/s**
 
 ## Requirements
 

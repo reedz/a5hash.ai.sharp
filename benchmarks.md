@@ -14,7 +14,7 @@ These benchmark results are **machine-dependent** and are provided for relative 
 ## Highlights
 
 - 64-bit (1MB): C **5.58 GB/s** vs C# **5.89 GB/s**
-- 4-byte throughput (ops/s): a5hash32 **~368M ops/s** vs HW Crc32 **~217M ops/s**
+- 4-byte throughput (ops/s): a5hash32 **~368M ops/s**
 
 ## Native C vs C#
 
@@ -73,27 +73,6 @@ These benchmark results are **machine-dependent** and are provided for relative 
 | 16KB | 11.691 | 9.814 | 1.19x |
 | 64KB | 12.061 | 10.367 | 1.16x |
 | 1MB | 11.806 | 8.758 | 1.35x |
-
-
-## C# vs hardware-accelerated CRC32
-
-`System.IO.Hashing.Crc32` is hardware-accelerated on supported CPUs (e.g. SSE4.2 / ARMv8 CRC).
-
-| Size | a5hash32 (GB/s) | a5hash (GB/s) | a5hash128 (GB/s) | Crc32 (HW) (GB/s) |
-|---:|---:|---:|---:|---:|
-| 4B | 1.373 | 1.003 | 0.477 | 0.808 |
-| 8B | 2.843 | 1.421 | 0.758 | 0.785 |
-| 16B | 4.266 | 2.865 | 1.496 | 2.672 |
-| 32B | 5.897 | 4.339 | 2.944 | 5.524 |
-| 64B | 7.926 | 6.151 | 4.249 | 7.853 |
-| 128B | 8.334 | 7.659 | 5.968 | 12.088 |
-| 256B | 7.457 | 7.006 | 7.798 | 17.419 |
-| 512B | 6.940 | 6.444 | 9.166 | 19.230 |
-| 1KB | 6.696 | 6.220 | 9.861 | 20.783 |
-| 4KB | 6.341 | 5.974 | 10.785 | 21.665 |
-| 16KB | 6.279 | 5.223 | 9.814 | 21.816 |
-| 64KB | 6.188 | 5.524 | 10.367 | 21.312 |
-| 1MB | 6.171 | 5.889 | 8.758 | 20.825 |
 
 
 ## How to reproduce

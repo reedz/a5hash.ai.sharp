@@ -4,9 +4,6 @@
     <ProjectReference Include="..\..\src\A5Hash\A5Hash.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="System.IO.Hashing" Version="10.0.2" />
-  </ItemGroup>
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
