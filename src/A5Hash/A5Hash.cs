@@ -30,24 +30,32 @@ public static unsafe class A5Hash
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ulong Hash(ReadOnlySpan<byte> data, ulong seed = 0)
     {
-        if (data.Length == 4)
+        int len = data.Length;
+        ref byte r0 = ref MemoryMarshal.GetReference(data);
+
+        if ((uint)len > 16u)
         {
-            uint x = LoadU32(ref MemoryMarshal.GetReference(data));
+            return HashCore(ref r0, len, seed);
+        }
+
+        if (len == 4)
+        {
+            uint x = LoadU32(ref r0);
             return Hash4(x, seed);
         }
 
-        if (data.Length == 8)
+        if (len == 8)
         {
-            ulong x = LoadU64(ref MemoryMarshal.GetReference(data));
+            ulong x = LoadU64(ref r0);
             return Hash8(x, seed);
         }
 
-        if (data.Length == 16)
+        if (len == 16)
         {
-            return Hash16(ref MemoryMarshal.GetReference(data), seed);
+            return Hash16(ref r0, seed);
         }
 
-        return HashCore(ref MemoryMarshal.GetReference(data), data.Length, seed);
+        return HashCore(ref r0, len, seed);
     }
 
     /// <summary>
@@ -97,24 +105,32 @@ public static unsafe class A5Hash
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static uint Hash32(ReadOnlySpan<byte> data, uint seed = 0)
     {
-        if (data.Length == 4)
+        int len = data.Length;
+        ref byte r0 = ref MemoryMarshal.GetReference(data);
+
+        if ((uint)len > 16u)
         {
-            uint x = LoadU32(ref MemoryMarshal.GetReference(data));
+            return Hash32Core(ref r0, len, seed);
+        }
+
+        if (len == 4)
+        {
+            uint x = LoadU32(ref r0);
             return Hash32_4(value: x, seed);
         }
 
-        if (data.Length == 8)
+        if (len == 8)
         {
-            ulong x = LoadU64(ref MemoryMarshal.GetReference(data));
+            ulong x = LoadU64(ref r0);
             return Hash32_8(value: x, seed);
         }
 
-        if (data.Length == 16)
+        if (len == 16)
         {
-            return Hash32_16(ref MemoryMarshal.GetReference(data), seed);
+            return Hash32_16(ref r0, seed);
         }
 
-        return Hash32Core(ref MemoryMarshal.GetReference(data), data.Length, seed);
+        return Hash32Core(ref r0, len, seed);
     }
 
     /// <summary>
@@ -164,28 +180,36 @@ public static unsafe class A5Hash
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static (ulong Low, ulong High) Hash128(ReadOnlySpan<byte> data, ulong seed = 0)
     {
-        if (data.Length == 4)
+        int len = data.Length;
+        ref byte r0 = ref MemoryMarshal.GetReference(data);
+
+        if ((uint)len > 16u)
         {
-            uint x = LoadU32(ref MemoryMarshal.GetReference(data));
+            return Hash128Core(ref r0, len, seed);
+        }
+
+        if (len == 4)
+        {
+            uint x = LoadU32(ref r0);
             ulong high;
             ulong low = Hash128_4(value: x, seed, out high);
             return (low, high);
         }
 
-        if (data.Length == 8)
+        if (len == 8)
         {
-            ulong x = LoadU64(ref MemoryMarshal.GetReference(data));
+            ulong x = LoadU64(ref r0);
             ulong high;
             ulong low = Hash128_8(value: x, seed, out high);
             return (low, high);
         }
 
-        if (data.Length == 16)
+        if (len == 16)
         {
-            return Hash128_16(ref MemoryMarshal.GetReference(data), seed);
+            return Hash128_16(ref r0, seed);
         }
 
-        return Hash128Core(ref MemoryMarshal.GetReference(data), data.Length, seed);
+        return Hash128Core(ref r0, len, seed);
     }
 
     /// <summary>
@@ -257,28 +281,38 @@ public static unsafe class A5Hash
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ulong Hash128(ReadOnlySpan<byte> data, out ulong high, ulong seed = 0)
     {
-        if (data.Length == 4)
+        int len = data.Length;
+        ref byte r0 = ref MemoryMarshal.GetReference(data);
+
+        if ((uint)len > 16u)
         {
-            uint x = LoadU32(ref MemoryMarshal.GetReference(data));
+            var t2 = Hash128Core(ref r0, len, seed);
+            high = t2.High;
+            return t2.Low;
+        }
+
+        if (len == 4)
+        {
+            uint x = LoadU32(ref r0);
             return Hash128_4(value: x, seed, out high);
         }
 
-        if (data.Length == 8)
+        if (len == 8)
         {
-            ulong x = LoadU64(ref MemoryMarshal.GetReference(data));
+            ulong x = LoadU64(ref r0);
             return Hash128_8(value: x, seed, out high);
         }
 
-        if (data.Length == 16)
+        if (len == 16)
         {
-            var t = Hash128_16(ref MemoryMarshal.GetReference(data), seed);
+            var t = Hash128_16(ref r0, seed);
             high = t.High;
             return t.Low;
         }
 
-        var t2 = Hash128Core(ref MemoryMarshal.GetReference(data), data.Length, seed);
-        high = t2.High;
-        return t2.Low;
+        var t3 = Hash128Core(ref r0, len, seed);
+        high = t3.High;
+        return t3.Low;
     }
 
     /// <summary>
@@ -319,6 +353,12 @@ public static unsafe class A5Hash
     private static ulong LoadU64(ref byte p)
     {
         return Unsafe.ReadUnaligned<ulong>(ref p);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong RotL32(ulong x)
+    {
+        return BitOperations.RotateLeft(x, 32);
     }
 
     /// <summary>
@@ -701,8 +741,8 @@ public static unsafe class A5Hash
             do
             {
                 UMul128(
-                    BitOperations.RotateLeft(LoadU64(ref msg), 32) ^ seed1,
-                    BitOperations.RotateLeft(LoadU64(ref Unsafe.Add(ref msg, 8)), 32) ^ seed2,
+                    RotL32(LoadU64(ref msg)) ^ seed1,
+                    RotL32(LoadU64(ref Unsafe.Add(ref msg, 8))) ^ seed2,
                     out seed1, out seed2);
 
                 msgLen -= 16;
@@ -719,22 +759,32 @@ public static unsafe class A5Hash
             return FinalizeHash64(seed1, seed2, val01);
         }
 
-        if (msgLen == 4)
+        if (msgLen == 16)
         {
-            uint x = LoadU32(ref msg);
-            ulong t = ((ulong)x << 32) | x;
-            seed1 ^= t;
-            seed2 ^= t;
+            seed1 ^= ((ulong)LoadU32(ref msg) << 32) | LoadU32(ref Unsafe.Add(ref msg, 12));
+            seed2 ^= ((ulong)LoadU32(ref Unsafe.Add(ref msg, 8)) << 32) | LoadU32(ref Unsafe.Add(ref msg, 4));
             return FinalizeHash64(seed1, seed2, val01);
         }
 
         if (msgLen > 3)
         {
             ref byte msg4 = ref Unsafe.Add(ref msg, msgLen - 4);
-            int mo = msgLen >> 3;
 
-            seed1 ^= ((ulong)LoadU32(ref msg) << 32) | LoadU32(ref msg4);
-            seed2 ^= ((ulong)LoadU32(ref Unsafe.Add(ref msg, mo * 4)) << 32) | LoadU32(ref Unsafe.Subtract(ref msg4, mo * 4));
+            uint a0 = LoadU32(ref msg);
+            uint a1 = LoadU32(ref msg4);
+            ulong t1 = ((ulong)a0 << 32) | a1;
+            seed1 ^= t1;
+
+            if ((uint)msgLen < 8u)
+            {
+                seed2 ^= t1;
+            }
+            else
+            {
+                ref byte msg4m4 = ref Unsafe.Subtract(ref msg4, 4);
+                ulong t2 = ((ulong)LoadU32(ref Unsafe.Add(ref msg, 4)) << 32) | LoadU32(ref msg4m4);
+                seed2 ^= t2;
+            }
 
             return FinalizeHash64(seed1, seed2, val01);
         }
@@ -1106,10 +1156,10 @@ public static unsafe class A5Hash
 
         if (msgLen < 33)
         {
-            a = BitOperations.RotateLeft(LoadU64(ref msg), 32);
-            b = BitOperations.RotateLeft(LoadU64(ref Unsafe.Add(ref msg, 8)), 32);
-            c = BitOperations.RotateLeft(LoadU64(ref Unsafe.Add(ref msg, msgLen - 16)), 32);
-            d = BitOperations.RotateLeft(LoadU64(ref Unsafe.Add(ref msg, msgLen - 8)), 32);
+            a = RotL32(LoadU64(ref msg));
+            b = RotL32(LoadU64(ref Unsafe.Add(ref msg, 8)));
+            c = RotL32(LoadU64(ref Unsafe.Add(ref msg, msgLen - 16)));
+            d = RotL32(LoadU64(ref Unsafe.Add(ref msg, msgLen - 8)));
 
             return FinalizeHash128WithCD(a, b, c, d, seed1, seed2, seed3, seed4, val01);
         }
