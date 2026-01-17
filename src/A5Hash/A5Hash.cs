@@ -761,8 +761,10 @@ public static unsafe class A5Hash
 
         if (msgLen == 16)
         {
-            seed1 ^= ((ulong)LoadU32(ref msg) << 32) | LoadU32(ref Unsafe.Add(ref msg, 12));
-            seed2 ^= ((ulong)LoadU32(ref Unsafe.Add(ref msg, 8)) << 32) | LoadU32(ref Unsafe.Add(ref msg, 4));
+            ulong u0 = LoadU64(ref msg);
+            ulong u1 = LoadU64(ref Unsafe.Add(ref msg, 8));
+            seed1 ^= ((u0 & 0xFFFFFFFFUL) << 32) | (u1 >> 32);
+            seed2 ^= ((u1 & 0xFFFFFFFFUL) << 32) | (u0 >> 32);
             return FinalizeHash64(seed1, seed2, val01);
         }
 
@@ -847,18 +849,6 @@ public static unsafe class A5Hash
                 seed1 = 0x58310E18;
                 seed2 = 0x12EC07F9;
             }
-            else if (msgLen == 4)
-            {
-                // Precomputed: UMul64(seed2 ^ 0, seed1 ^ 0) for msgLen==4
-                seed1 = 0xFFBADB94;
-                seed2 = 0x12EC07FB;
-            }
-            else if (msgLen == 16)
-            {
-                // Precomputed: UMul64(seed2 ^ 0, seed1 ^ 0) for msgLen==16
-                seed1 = 0x6E6AF1C8;
-                seed2 = 0x12EC07FF;
-            }
             else
             {
                 UMul64(seed2, seed1, out seed1, out seed2);
@@ -874,13 +864,12 @@ public static unsafe class A5Hash
             if (msgLen > 3)
             {
                 a = LoadU32(ref msg);
-                b = (msgLen == 4) ? a : LoadU32(ref Unsafe.Add(ref msg, msgLen - 4));
+                b = LoadU32(ref Unsafe.Add(ref msg, msgLen - 4));
 
                 if (msgLen >= 9)
                 {
-                    int mo = msgLen >> 3;
-                    c = LoadU32(ref Unsafe.Add(ref msg, mo * 4));
-                    d = LoadU32(ref Unsafe.Add(ref msg, msgLen - 4 - mo * 4));
+                    c = LoadU32(ref Unsafe.Add(ref msg, 4));
+                    d = LoadU32(ref Unsafe.Add(ref msg, msgLen - 8));
                     UMul64(c + seed3, d + seed4, out seed3, out seed4);
                 }
 
@@ -914,7 +903,7 @@ public static unsafe class A5Hash
             val01 ^= seed1;
             val10 ^= seed2;
 
-            if (Sse2.IsSupported && msgLen >= 16)
+            if (Sse2.IsSupported && msgLen >= 64)
             {
                 var seedVec = Vector128.Create(seed1, seed2, seed3, seed4);
                 var val01Vec = Vector128.Create(val01);
@@ -1112,21 +1101,20 @@ public static unsafe class A5Hash
 
         if (msgLen < 17)
         {
-            if (msgLen == 4)
-            {
-                uint x = LoadU32(ref msg);
-                a = ((ulong)x << 32) | x;
-                b = a;
-                return FinalizeHash128Short(a, b, seed1, seed2, seed3, seed4, val01);
-            }
-
             if (msgLen > 3)
             {
                 ref byte msg4 = ref Unsafe.Add(ref msg, msgLen - 4);
-                int mo = msgLen >> 3;
 
                 a = ((ulong)LoadU32(ref msg) << 32) | LoadU32(ref msg4);
-                b = ((ulong)LoadU32(ref Unsafe.Add(ref msg, mo * 4)) << 32) | LoadU32(ref Unsafe.Subtract(ref msg4, mo * 4));
+
+                if ((uint)msgLen < 8u)
+                {
+                    b = a;
+                }
+                else
+                {
+                    b = ((ulong)LoadU32(ref Unsafe.Add(ref msg, 4)) << 32) | LoadU32(ref Unsafe.Subtract(ref msg4, 4));
+                }
 
                 return FinalizeHash128Short(a, b, seed1, seed2, seed3, seed4, val01);
             }
