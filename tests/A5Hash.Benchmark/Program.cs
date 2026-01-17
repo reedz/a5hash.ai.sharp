@@ -9,6 +9,8 @@ class Program
     const int WarmupIterations = 1000;
     const double BenchmarkDurationSec = 1.0;
 
+    static readonly global::A5Hash.A5Hash Hasher = new(0);
+
     static void Main(string[] args)
     {
         bool minimal4 = Array.IndexOf(args, "--minimal") >= 0;
@@ -108,7 +110,7 @@ class Program
         int size = data.Length;
 
         for (int i = 0; i < WarmupIterations; i++)
-            result = global::A5Hash.A5Hash.Hash(data, 0);
+            result = Hasher.Hash(data);
 
         long iterations = 0;
         var sw = Stopwatch.StartNew();
@@ -116,7 +118,7 @@ class Program
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
-                result = global::A5Hash.A5Hash.Hash(data, 0);
+                result = Hasher.Hash(data);
             iterations += 1000;
         }
 
@@ -136,7 +138,7 @@ class Program
         int size = data.Length;
 
         for (int i = 0; i < WarmupIterations; i++)
-            result = global::A5Hash.A5Hash.Hash32(data, 0);
+            result = Hasher.Hash32(data);
 
         long iterations = 0;
         var sw = Stopwatch.StartNew();
@@ -144,7 +146,7 @@ class Program
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
-                result = global::A5Hash.A5Hash.Hash32(data, 0);
+                result = Hasher.Hash32(data);
             iterations += 1000;
         }
 
@@ -165,7 +167,7 @@ class Program
         int size = data.Length;
 
         for (int i = 0; i < WarmupIterations; i++)
-            low = global::A5Hash.A5Hash.Hash128(data, out high, 0);
+            low = Hasher.Hash128(data, out high);
 
         long iterations = 0;
         var sw = Stopwatch.StartNew();
@@ -173,7 +175,7 @@ class Program
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
-                low = global::A5Hash.A5Hash.Hash128(data, out high, 0);
+                low = Hasher.Hash128(data, out high);
             iterations += 1000;
         }
 
@@ -194,7 +196,7 @@ class Program
         ulong result = 0;
 
         for (int i = 0; i < WarmupIterations; i++)
-            result = global::A5Hash.A5Hash.Hash(value, 0);
+            result = Hasher.Hash(value);
 
         long iterations = 0;
         var sw = Stopwatch.StartNew();
@@ -202,7 +204,7 @@ class Program
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
-                result = global::A5Hash.A5Hash.Hash(value, 0);
+                result = Hasher.Hash(value);
             iterations += 1000;
         }
 
@@ -218,7 +220,7 @@ class Program
         ulong result = 0;
 
         for (int i = 0; i < WarmupIterations; i++)
-            result = global::A5Hash.A5Hash.Hash(value, 0);
+            result = Hasher.Hash(value);
 
         long iterations = 0;
         var sw = Stopwatch.StartNew();
@@ -226,7 +228,7 @@ class Program
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
-                result = global::A5Hash.A5Hash.Hash(value, 0);
+                result = Hasher.Hash(value);
             iterations += 1000;
         }
 
@@ -242,7 +244,7 @@ class Program
         ulong result = 0;
 
         for (int i = 0; i < WarmupIterations; i++)
-            result = global::A5Hash.A5Hash.Hash(data, 0);
+            result = Hasher.Hash(data);
 
         long iterations = 0;
         var sw = Stopwatch.StartNew();
@@ -250,7 +252,7 @@ class Program
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
-                result = global::A5Hash.A5Hash.Hash(data, 0);
+                result = Hasher.Hash(data);
             iterations += 1000;
         }
 
@@ -266,7 +268,7 @@ class Program
         uint result = 0;
 
         for (int i = 0; i < WarmupIterations; i++)
-            result = global::A5Hash.A5Hash.Hash32(value, 0);
+            result = Hasher.Hash32(value);
 
         long iterations = 0;
         var sw = Stopwatch.StartNew();
@@ -274,7 +276,7 @@ class Program
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
-                result = global::A5Hash.A5Hash.Hash32(value, 0);
+                result = Hasher.Hash32(value);
             iterations += 1000;
         }
 
@@ -290,7 +292,7 @@ class Program
         uint result = 0;
 
         for (int i = 0; i < WarmupIterations; i++)
-            result = global::A5Hash.A5Hash.Hash32(value, 0);
+            result = Hasher.Hash32(value);
 
         long iterations = 0;
         var sw = Stopwatch.StartNew();
@@ -298,7 +300,7 @@ class Program
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
-                result = global::A5Hash.A5Hash.Hash32(value, 0);
+                result = Hasher.Hash32(value);
             iterations += 1000;
         }
 
@@ -314,7 +316,7 @@ class Program
         uint result = 0;
 
         for (int i = 0; i < WarmupIterations; i++)
-            result = global::A5Hash.A5Hash.Hash32(data, 0);
+            result = Hasher.Hash32(data);
 
         long iterations = 0;
         var sw = Stopwatch.StartNew();
@@ -322,7 +324,7 @@ class Program
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
-                result = global::A5Hash.A5Hash.Hash32(data, 0);
+                result = Hasher.Hash32(data);
             iterations += 1000;
         }
 
@@ -339,7 +341,7 @@ class Program
         ulong high = 0;
 
         for (int i = 0; i < WarmupIterations; i++)
-            low = global::A5Hash.A5Hash.Hash128(value, out high, 0);
+            low = Hasher.Hash128(value, out high);
 
         long iterations = 0;
         var sw = Stopwatch.StartNew();
@@ -347,7 +349,7 @@ class Program
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
-                low = global::A5Hash.A5Hash.Hash128(value, out high, 0);
+                low = Hasher.Hash128(value, out high);
             iterations += 1000;
         }
 
@@ -365,7 +367,7 @@ class Program
         ulong high = 0;
 
         for (int i = 0; i < WarmupIterations; i++)
-            low = global::A5Hash.A5Hash.Hash128(value, out high, 0);
+            low = Hasher.Hash128(value, out high);
 
         long iterations = 0;
         var sw = Stopwatch.StartNew();
@@ -373,7 +375,7 @@ class Program
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
-                low = global::A5Hash.A5Hash.Hash128(value, out high, 0);
+                low = Hasher.Hash128(value, out high);
             iterations += 1000;
         }
 
@@ -391,7 +393,7 @@ class Program
         ulong high = 0;
 
         for (int i = 0; i < WarmupIterations; i++)
-            low = global::A5Hash.A5Hash.Hash128(data, out high, 0);
+            low = Hasher.Hash128(data, out high);
 
         long iterations = 0;
         var sw = Stopwatch.StartNew();
@@ -399,7 +401,7 @@ class Program
         while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
         {
             for (int i = 0; i < 1000; i++)
-                low = global::A5Hash.A5Hash.Hash128(data, out high, 0);
+                low = Hasher.Hash128(data, out high);
             iterations += 1000;
         }
 

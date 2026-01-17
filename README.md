@@ -6,9 +6,8 @@ High-performance, **AI-assisted C# port** of the original **a5hash** family of h
 - Upstream author: Aleksey Vaneev (2025), MIT licensed
 
 This library provides:
-- `A5Hash.Hash` (64-bit)
-- `A5Hash.Hash32` (32-bit)
-- `A5Hash.Hash128` (128-bit)
+- `new A5Hash(seed, options)` instance API (recommended)
+- `A5Hash.Hash` / `A5Hash.Hash32` / `A5Hash.Hash128` static convenience APIs
 
 > a5hash is a fast non-cryptographic hash intended for hash tables / bloom filters (not a cryptographic primitive).
 
@@ -32,15 +31,21 @@ using A5Hash;
 ReadOnlySpan<byte> bytes = "Hello, World!"u8;
 ReadOnlySpan<char> chars = "Hello, World!";
 
-ulong h64Bytes = A5Hash.Hash(bytes);
-uint  h32Bytes = A5Hash.Hash32(bytes);
-var (lowBytes, highBytes) = A5Hash.Hash128(bytes);
+// Recommended: instance API (seed configured once)
+var hasher = new A5Hash(seed: 0xDEADBEEFCAFEBABE);
 
-ulong h64Chars = A5Hash.Hash(chars);
-uint  h32Chars = A5Hash.Hash32(chars);
-var (lowChars, highChars) = A5Hash.Hash128(chars);
+ulong h64Bytes = hasher.Hash(bytes);
+uint  h32Bytes = hasher.Hash32(bytes);
+var (lowBytes, highBytes) = hasher.Hash128(bytes);
 
-// Optional seed (recommended when hashing attacker-controlled keys)
+ulong h64Chars = hasher.Hash(chars);
+uint  h32Chars = hasher.Hash32(chars);
+var (lowChars, highChars) = hasher.Hash128(chars);
+
+// Optional: disable intrinsics/SIMD (for diagnostics/portability)
+var scalarHasher = new A5Hash(seed: 0xDEADBEEFCAFEBABE, options: new A5HashOptions { UseIntrinsics = false });
+
+// Static convenience API still available
 ulong seeded = A5Hash.Hash(chars, seed: 0xDEADBEEFCAFEBABE);
 ```
 
@@ -48,7 +53,8 @@ ulong seeded = A5Hash.Hash(chars, seed: 0xDEADBEEFCAFEBABE);
 
 ```csharp
 byte[] buffer = new byte[1024];
-ulong hash = A5Hash.Hash(buffer.AsSpan(0, 256));
+var hasher = new A5Hash(seed: 0);
+ulong hash = hasher.Hash(buffer.AsSpan(0, 256));
 ```
 
 ## Benchmarks (short)

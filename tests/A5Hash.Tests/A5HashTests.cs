@@ -14,7 +14,8 @@ public class A5HashTests
     [MemberData(nameof(GetTestVectors))]
     public void A5Hash_ProducesSameOutputAsNative(TestVector vector)
     {
-        ulong actual = global::A5Hash.A5Hash.Hash(vector.Input, vector.Seed64);
+        var hasher = new global::A5Hash.A5Hash(vector.Seed64);
+        ulong actual = hasher.Hash(vector.Input);
         Assert.Equal(vector.ExpectedHash64, actual);
     }
     
@@ -23,8 +24,9 @@ public class A5HashTests
     public void A5Hash_LargeInputs_ProducesSameOutputAsNative(LargeTestVector vector)
     {
         var input = TestVectors.GenerateSequentialBytes(vector.Length);
+        var hasher = new global::A5Hash.A5Hash(seed: 0);
         
-        ulong actual = global::A5Hash.A5Hash.Hash(input, 0);
+        ulong actual = hasher.Hash(input);
         Assert.Equal(vector.ExpectedHash64, actual);
     }
     
@@ -36,7 +38,8 @@ public class A5HashTests
     [MemberData(nameof(GetTestVectors))]
     public void A5Hash32_ProducesSameOutputAsNative(TestVector vector)
     {
-        uint actual = global::A5Hash.A5Hash.Hash32(vector.Input, vector.Seed32);
+        var hasher = new global::A5Hash.A5Hash(vector.Seed64, vector.Seed32);
+        uint actual = hasher.Hash32(vector.Input);
         Assert.Equal(vector.ExpectedHash32, actual);
     }
     
@@ -45,8 +48,9 @@ public class A5HashTests
     public void A5Hash32_LargeInputs_ProducesSameOutputAsNative(LargeTestVector vector)
     {
         var input = TestVectors.GenerateSequentialBytes(vector.Length);
+        var hasher = new global::A5Hash.A5Hash(seed64: 0, seed32: 0);
         
-        uint actual = global::A5Hash.A5Hash.Hash32(input, 0);
+        uint actual = hasher.Hash32(input);
         Assert.Equal(vector.ExpectedHash32, actual);
     }
     
@@ -58,7 +62,8 @@ public class A5HashTests
     [MemberData(nameof(GetTestVectors))]
     public void A5Hash128_ProducesSameOutputAsNative(TestVector vector)
     {
-        var (low, high) = global::A5Hash.A5Hash.Hash128(vector.Input, vector.Seed64);
+        var hasher = new global::A5Hash.A5Hash(vector.Seed64);
+        var (low, high) = hasher.Hash128(vector.Input);
         Assert.Equal(vector.ExpectedHash128Low, low);
         Assert.Equal(vector.ExpectedHash128High, high);
     }
@@ -68,8 +73,9 @@ public class A5HashTests
     public void A5Hash128_LargeInputs_ProducesSameOutputAsNative(LargeTestVector vector)
     {
         var input = TestVectors.GenerateSequentialBytes(vector.Length);
+        var hasher = new global::A5Hash.A5Hash(seed: 0);
         
-        var (low, high) = global::A5Hash.A5Hash.Hash128(input, 0);
+        var (low, high) = hasher.Hash128(input);
         Assert.Equal(vector.ExpectedHash128Low, low);
         Assert.Equal(vector.ExpectedHash128High, high);
     }
