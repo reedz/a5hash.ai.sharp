@@ -89,5 +89,9 @@ C#:
 
 ```bash
 cd tests/A5Hash.Benchmark
+# full suite
 dotnet run -c Release
+
+# strings-only minimal mode (ops/s)
+dotnet run -c Release -- --strings
 ```
