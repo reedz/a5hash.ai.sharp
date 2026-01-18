@@ -235,6 +235,24 @@ public sealed unsafe class A5Hash
     public uint Hash32(uint value) => Hash32_4(value, _seed32);
 
     /// <summary>
+    /// Produces 4 independent 32-bit hash values for four 4-byte inputs.
+    /// Useful for batching fixed-size keys (e.g., hash tables).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void Hash32x4(uint v0, uint v1, uint v2, uint v3,
+        out uint h0, out uint h1, out uint h2, out uint h3, uint seed = 0)
+    {
+        Hash32x4Impl(v0, v1, v2, v3, seed, useIntrinsics: true, out h0, out h1, out h2, out h3);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Hash32x4(uint v0, uint v1, uint v2, uint v3,
+        out uint h0, out uint h1, out uint h2, out uint h3)
+    {
+        Hash32x4Impl(v0, v1, v2, v3, _seed32, _useIntrinsics, out h0, out h1, out h2, out h3);
+    }
+
+    /// <summary>
     /// Produces a 32-bit hash value of an 8-byte value.
     /// Useful for high-throughput hashing of fixed-size keys.
     /// </summary>
@@ -1034,6 +1052,116 @@ public sealed unsafe class A5Hash
         UMul64(val01 ^ seed1, seed2, out a, out b);
 
         return a ^ b;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint FinalizeHash32_4(uint value, uint seed1, uint seed2, uint val01)
+    {
+        UMul64(value + seed1, value + seed2, out seed1, out seed2);
+        UMul64(val01 ^ seed1, seed2, out uint a, out uint b);
+        return a ^ b;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Hash32x2Sse2(uint v0, uint v1, uint seed1, uint seed2, uint val01, out uint h0, out uint h1)
+    {
+        var msgVec = Vector128.Create(v0, v0, v1, v1);
+        var seedVec = Vector128.Create(seed1, seed2, seed1, seed2);
+        var terms = Sse2.Add(msgVec, seedVec);
+
+        var left = Sse2.Shuffle(terms, 0xA0);
+        var right = Sse2.Shuffle(terms, 0xF5);
+        var prod = Sse2.Multiply(left, right);
+
+        var seeds = prod.AsUInt32();
+        var xorMask = Vector128.Create(val01, 0u, val01, 0u);
+        var terms2 = Sse2.Xor(seeds, xorMask);
+
+        left = Sse2.Shuffle(terms2, 0xA0);
+        right = Sse2.Shuffle(terms2, 0xF5);
+        var prod2 = Sse2.Multiply(left, right);
+
+        ulong q0 = prod2.GetElement(0);
+        ulong q1 = prod2.GetElement(1);
+        h0 = unchecked((uint)q0) ^ unchecked((uint)(q0 >> 32));
+        h1 = unchecked((uint)q1) ^ unchecked((uint)(q1 >> 32));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Hash32x4Avx2(uint v0, uint v1, uint v2, uint v3, uint seed1, uint seed2, uint val01,
+        out uint h0, out uint h1, out uint h2, out uint h3)
+    {
+        var msgVec = Vector256.Create(v0, v0, v1, v1, v2, v2, v3, v3);
+        var seedVec = Vector256.Create(seed1, seed2, seed1, seed2, seed1, seed2, seed1, seed2);
+        var terms = Avx2.Add(msgVec, seedVec);
+
+        var idxL = Vector256.Create(0, 0, 2, 2, 4, 4, 6, 6);
+        var idxR = Vector256.Create(1, 1, 3, 3, 5, 5, 7, 7);
+
+        var left = Avx2.PermuteVar8x32(terms.AsInt32(), idxL).AsUInt32();
+        var right = Avx2.PermuteVar8x32(terms.AsInt32(), idxR).AsUInt32();
+        var prod = Avx2.Multiply(left, right);
+
+        var seeds = prod.AsUInt32();
+        var xorMask = Vector256.Create(val01, 0u, val01, 0u, val01, 0u, val01, 0u);
+        var terms2 = Avx2.Xor(seeds, xorMask);
+
+        left = Avx2.PermuteVar8x32(terms2.AsInt32(), idxL).AsUInt32();
+        right = Avx2.PermuteVar8x32(terms2.AsInt32(), idxR).AsUInt32();
+        var prod2 = Avx2.Multiply(left, right);
+
+        ulong q0 = prod2.GetElement(0);
+        ulong q1 = prod2.GetElement(1);
+        ulong q2 = prod2.GetElement(2);
+        ulong q3 = prod2.GetElement(3);
+
+        h0 = unchecked((uint)q0) ^ unchecked((uint)(q0 >> 32));
+        h1 = unchecked((uint)q1) ^ unchecked((uint)(q1 >> 32));
+        h2 = unchecked((uint)q2) ^ unchecked((uint)(q2 >> 32));
+        h3 = unchecked((uint)q3) ^ unchecked((uint)(q3 >> 32));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Hash32x4Impl(uint v0, uint v1, uint v2, uint v3, uint seed, bool useIntrinsics,
+        out uint h0, out uint h1, out uint h2, out uint h3)
+    {
+        uint val01 = unchecked((uint)Val01);
+        uint seed1 = 0x243F6A88 ^ 4u;
+        uint seed2 = 0x85A308D3 ^ 4u;
+
+        if (seed == 0)
+        {
+            // Precomputed: UMul64(seed2 ^ 0, seed1 ^ 0) for msgLen==4
+            seed1 = 0xFFBADB94;
+            seed2 = 0x12EC07FB;
+        }
+        else
+        {
+            uint val10 = unchecked((uint)Val10);
+            UMul64(seed2 ^ (seed & val10), seed1 ^ (seed & val01), out seed1, out seed2);
+        }
+
+        // Fold in the constant per-hash seeds used by a5hash32.
+        seed1 ^= 0xFB0BD3EA;
+        seed2 ^= 0x0F58FD47;
+
+        if (useIntrinsics && Avx2.IsSupported)
+        {
+            Hash32x4Avx2(v0, v1, v2, v3, seed1, seed2, val01, out h0, out h1, out h2, out h3);
+            return;
+        }
+
+        if (useIntrinsics && Sse2.IsSupported)
+        {
+            Hash32x2Sse2(v0, v1, seed1, seed2, val01, out h0, out h1);
+            Hash32x2Sse2(v2, v3, seed1, seed2, val01, out h2, out h3);
+            return;
+        }
+
+        h0 = FinalizeHash32_4(v0, seed1, seed2, val01);
+        h1 = FinalizeHash32_4(v1, seed1, seed2, val01);
+        h2 = FinalizeHash32_4(v2, seed1, seed2, val01);
+        h3 = FinalizeHash32_4(v3, seed1, seed2, val01);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]

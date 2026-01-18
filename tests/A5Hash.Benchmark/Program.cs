@@ -81,6 +81,13 @@ class Program
             }
         }
 
+        if (minimal4)
+        {
+            Console.WriteLine();
+            Console.WriteLine("--- a5hash32 4B: scalar vs batched ---");
+            BenchmarkHash32ScalarVsBatched(BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(0, 4)));
+        }
+
         Console.WriteLine();
         Console.WriteLine("--- a5hash128 (128-bit) ---");
         foreach (var (size, name) in sizes)
@@ -411,5 +418,52 @@ class Program
         Console.WriteLine($"a5hash128 {name,12}: {opsPerSec,12:F0} ops/sec");
         GC.KeepAlive(low);
         GC.KeepAlive(high);
+    }
+
+    static void BenchmarkHash32ScalarVsBatched(uint value)
+    {
+        uint result = 0;
+
+        for (int i = 0; i < WarmupIterations; i++)
+            result = Hasher.Hash32(value);
+
+        long iterations = 0;
+        var sw = Stopwatch.StartNew();
+
+        while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
+        {
+            for (int i = 0; i < 1000; i++)
+                result = Hasher.Hash32(value);
+            iterations += 1000;
+        }
+
+        sw.Stop();
+        double scalarOpsPerSec = iterations / sw.Elapsed.TotalSeconds;
+
+        uint h0 = 0, h1 = 0, h2 = 0, h3 = 0;
+
+        for (int i = 0; i < WarmupIterations; i++)
+            Hasher.Hash32x4(value, value, value, value, out h0, out h1, out h2, out h3);
+
+        iterations = 0;
+        sw.Restart();
+
+        while (sw.Elapsed.TotalSeconds < BenchmarkDurationSec)
+        {
+            for (int i = 0; i < 1000; i++)
+                Hasher.Hash32x4(value, value, value, value, out h0, out h1, out h2, out h3);
+            iterations += 1000;
+        }
+
+        sw.Stop();
+        double batchedOpsPerSec = (iterations * 4) / sw.Elapsed.TotalSeconds;
+
+        Console.WriteLine($"  scalar:  {scalarOpsPerSec,12:F0} ops/sec");
+        Console.WriteLine($"  batched: {batchedOpsPerSec,12:F0} ops/sec");
+        GC.KeepAlive(result);
+        GC.KeepAlive(h0);
+        GC.KeepAlive(h1);
+        GC.KeepAlive(h2);
+        GC.KeepAlive(h3);
     }
 }
