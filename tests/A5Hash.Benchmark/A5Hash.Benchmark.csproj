@@ -4,6 +4,9 @@
     <ProjectReference Include="..\..\src\A5Hash\A5Hash.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
