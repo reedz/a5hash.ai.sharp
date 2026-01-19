@@ -81,31 +81,3 @@ public class A5HashStringBenchmarks
     [Benchmark(Description = "a5hash128 string")]
     public (ulong Low, ulong High) Hash128String() => _hasher.Hash128(_s);
 }
-
-[MemoryDiagnoser]
-public class A5Hash32BatchedBenchmarks
-{
-    private readonly global::A5Hash.A5Hash _hasher = new(0);
-
-    private uint _v0 = 0x12345678;
-    private uint _v1 = 0x90ABCDEF;
-    private uint _v2 = 0x0BADF00D;
-    private uint _v3 = 0xC001D00D;
-
-    [Benchmark(Description = "a5hash32 scalar x4")]
-    public uint Hash32ScalarX4()
-    {
-        uint h = _hasher.Hash32(_v0);
-        h ^= _hasher.Hash32(_v1);
-        h ^= _hasher.Hash32(_v2);
-        h ^= _hasher.Hash32(_v3);
-        return h;
-    }
-
-    [Benchmark(Description = "a5hash32 batched x4")]
-    public uint Hash32BatchedX4()
-    {
-        _hasher.Hash32x4(_v0, _v1, _v2, _v3, out uint h0, out uint h1, out uint h2, out uint h3);
-        return h0 ^ h1 ^ h2 ^ h3;
-    }
-}

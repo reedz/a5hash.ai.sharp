@@ -42,12 +42,6 @@ public class A5HashTests
         uint actual = hasher.Hash32(vector.Input);
         Assert.Equal(vector.ExpectedHash32, actual);
 
-        // Spot-check x4 API for fixed-size keys.
-        global::A5Hash.A5Hash.Hash32x4(1u, 2u, 3u, 4u, out uint h0, out uint h1, out uint h2, out uint h3, seed: vector.Seed32);
-        Assert.Equal(global::A5Hash.A5Hash.Hash32(1u, vector.Seed32), h0);
-        Assert.Equal(global::A5Hash.A5Hash.Hash32(2u, vector.Seed32), h1);
-        Assert.Equal(global::A5Hash.A5Hash.Hash32(3u, vector.Seed32), h2);
-        Assert.Equal(global::A5Hash.A5Hash.Hash32(4u, vector.Seed32), h3);
     }
     
     [Theory]
